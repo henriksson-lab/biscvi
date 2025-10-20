@@ -1,7 +1,12 @@
 
 
+use my_web_app::ReductionRequest;
 use web_sys::window;
 use yew::prelude::*;
+
+use my_web_app::ClusterRequestResponse;
+use my_web_app::ReductionRequestResponse;
+use bytes::Buf;
 
 ////////////////////////////////////////////////////////////
 /// Which page is currently being shown?
@@ -22,6 +27,9 @@ pub enum Msg {
 
     OpenPage(CurrentPage),
 
+    GetReduction(String),
+    SetReduction(ReductionRequestResponse)
+
 }
 
 
@@ -40,7 +48,16 @@ impl Component for Model {
 
     ////////////////////////////////////////////////////////////
     /// Create a new component
-    fn create(_ctx: &Context<Self>) -> Self {
+    fn create(ctx: &Context<Self>) -> Self {
+
+        ctx.link().send_message(Msg::GetReduction("kraken_umap".into()));
+
+//        ctx.link().send_message(MsgUMAP::GetReduction());
+
+
+
+
+
 
         Self {
             current_page: CurrentPage::Home,
@@ -52,13 +69,91 @@ impl Component for Model {
 
     ////////////////////////////////////////////////////////////
     /// Handle an update message
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
 
+            ////////////////////////////////////////////////////////////
+            // Message: Open a given page
             Msg::OpenPage(page) => {
                 self.current_page = page;
                 true
-            }
+            },
+
+            /*
+            
+            
+            Msg::GetReduction(reduction_name) => { ///////////////////////////// all sorts of data
+
+                //TODO need to get a list of reductions, metadata etc
+
+                
+                async fn get_data() -> Msg {
+                    let client = reqwest::Client::new();
+                    //log::debug!("get coloring");
+                    let res = client.get(format!("{}/get_reduction",get_host_url()))
+                        .header("Content-Type", "application/json")
+                        .body("") // no body
+                        .send()
+                        .await
+                        .expect("Failed to send request").bytes().await.expect("Could not get binary data");
+                    //log::debug!("got bytes");
+                    let res = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
+                    //log::debug!("got deserialized");
+
+
+                    Msg::SetReduction(res)
+                }
+                ctx.link().send_future(get_data());
+                false
+            },
+
+             */
+                //TODO need to get a list of reductions, metadata etc
+
+
+
+
+
+
+            ////////////////////////////////////////////////////////////
+            // Message: Get a given reduction
+            Msg::GetReduction(reduction_name) => {
+
+                let query = ReductionRequest {
+                    reduction_name: reduction_name
+                };
+                let query_json = serde_json::to_vec(&query).expect("Could not convert to json");
+                
+                let get_data = async move {
+                    let client = reqwest::Client::new();
+                    //log::debug!("get coloring");
+                    let res = client.post(format!("{}/get_reduction",get_host_url()))
+                        .header("Content-Type", "application/json")
+                        .body(query_json) 
+                        .send()
+                        .await
+                        .expect("Failed to send request")
+                        .bytes()
+                        .await
+                        .expect("Could not get binary data");
+                    //log::debug!("got bytes");
+                    let res = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
+                    //log::debug!("got deserialized");
+
+
+                    Msg::SetReduction(res)
+                };
+
+                ctx.link().send_future(get_data);
+                false
+            },
+
+            ////////////////////////////////////////////////////////////
+            // Message: Set reduction data, sent from server
+            Msg::SetReduction(res) => {
+                println!("got reduction {:?}",res);
+                true
+            },
 
         }
     }

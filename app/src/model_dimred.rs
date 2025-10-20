@@ -16,6 +16,10 @@ impl Model {
             <div>
                 <div class="biscvi-dimred-maindiv">
                     {"UMAP here"}
+
+
+
+                    
                 </div>
                 <div class="biscvi-dimred-leftdiv">
                     <div>

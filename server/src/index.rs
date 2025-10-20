@@ -3,16 +3,21 @@
 // Go through dir, index all files
 
 use std::collections::BTreeMap;
-use std::path::Path;
-use std::fs::read_dir;
+use std::path::{Path};
+
+use crate::countfile::{prepare_countfile, CountFile};
+//use std::fs::read_dir;
 
 
+////////////////////////////////////////////////////////////
+/// 
 pub struct ListFiles {
     pub files: BTreeMap<String, ShardSet>,
 
 }
 
-
+////////////////////////////////////////////////////////////
+/// 
 pub struct ShardSet {
 
     pub lst: Vec<String>,
@@ -20,21 +25,30 @@ pub struct ShardSet {
     
 }
 
-
+////////////////////////////////////////////////////////////
+/// 
 pub struct BascetZipFile {
 
 
 }
 
+////////////////////////////////////////////////////////////
+/// 
+pub struct BascetDir {
+    pub counts: CountFile
+}
 
 
+////////////////////////////////////////////////////////////
+/// 
+pub fn index_bascet_dir(bascet_dir: &Path) -> anyhow::Result<BascetDir> {
 
 
-pub fn index_bascet_dir(bascet_dir: &Path) {
-
-
+    let cf = prepare_countfile(&"/home/mahogny/github/rbiscvi/counts.biscvi5".into())?;
 
     
+
+
 
     let paths = std::fs::read_dir(bascet_dir).unwrap();
 
@@ -42,6 +56,8 @@ pub fn index_bascet_dir(bascet_dir: &Path) {
         println!("Name: {}", path.unwrap().path().display())
     }
 
-
+    Ok(BascetDir {
+        counts: cf
+    })
 
 }

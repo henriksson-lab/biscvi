@@ -1,26 +1,97 @@
 pub mod index;
+pub mod countfile;
+pub mod err;
 
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use std::sync::Mutex;
 use std::io::BufReader;
 
 use actix_files::Files;
-use actix_web::{web, web::Data, App, HttpResponse, HttpServer};
+use actix_web::http::header::ContentType;
+use actix_web::web::Json;
+use actix_web::{web, web::Data, App, HttpResponse, HttpServer, get, post};
+use my_web_app::{ClusterRequest, MetadataColumnRequest, ReductionRequest};
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::index::index_bascet_dir;
+use crate::err::MyError;
+use crate::index::{index_bascet_dir, BascetDir};
 
 ////////////////////////////////////////////////////////////
 /// Backend state
 pub struct ServerData {
+    bdir: BascetDir
 }
 
 
+////////////////////////////////////////////////////////////
+/// 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ConfigFile {
     bind: String,
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////
+/// REST entry point
+#[post("/get_featurecounts")]
+async fn get_featurecounts(server_data: Data<Mutex<ServerData>>, req_body: web::Json<ClusterRequest>) -> Result<HttpResponse, MyError> { 
+
+    println!("get_sequence {:?}",req_body);
+    let Json(req) = req_body;
+
+    let server_data =server_data.lock().unwrap();
+    let mat = server_data.bdir.counts.get_counts_for_cell(&req.counts_name.into(), req.row)?;
+    let ser_out = serde_cbor::to_vec(&mat)?;
+
+    Ok(HttpResponse::Ok()
+        .content_type(ContentType::octet_stream())
+        .body(ser_out))
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////
+/// REST entry point
+#[post("/get_reduction")]
+async fn get_reduction(server_data: Data<Mutex<ServerData>>, req_body: web::Json<ReductionRequest>) -> Result<HttpResponse, MyError> { 
+
+    println!("get_reduction {:?}",req_body);
+    let Json(req) = req_body;
+
+    let server_data =server_data.lock().unwrap();
+    let mat = server_data.bdir.counts.get_reduction(&req.reduction_name.into())?;
+    let ser_out = serde_cbor::to_vec(&mat)?;
+
+    Ok(HttpResponse::Ok()
+        .content_type(ContentType::octet_stream())
+        .body(ser_out))
+}
+
+
+
+
+////////////////////////////////////////////////////////////
+/// REST entry point
+#[post("/get_metacolumn")]
+async fn get_metacolumn(server_data: Data<Mutex<ServerData>>, req_body: web::Json<MetadataColumnRequest>) -> Result<HttpResponse, MyError> { 
+
+    println!("get_metacolumn {:?}",req_body);
+    let Json(req) = req_body;
+
+    let server_data =server_data.lock().unwrap();
+    let mat = server_data.bdir.counts.get_metacolumn(&req.column_name.into())?;
+    let ser_out = serde_cbor::to_vec(&mat)?;
+
+    Ok(HttpResponse::Ok()
+        .content_type(ContentType::octet_stream())
+        .body(ser_out))
 }
 
 
@@ -42,14 +113,13 @@ async fn main() -> std::io::Result<()> {
     let config_file:ConfigFile = serde_json::from_reader(config_reader).expect("Could not open config file");
 
 
-    let bascet_dir = Path::new("/Users/mahogny/Desktop/rust/biscvi/testdata");
+    let bascet_dir = Path::new("testdata");
 
-    index_bascet_dir(&bascet_dir);
+    let bdir = index_bascet_dir(&bascet_dir).expect("Failed to index data");
     
-    // 
-
     let data = Data::new(Mutex::new(
         ServerData {
+            bdir: bdir
         }
     ));
 
@@ -57,7 +127,10 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(data.clone())
             .wrap(actix_web::middleware::Logger::default())  //for debugging
+            .service(get_featurecounts)
+            .service(get_reduction)
             .service(Files::new("/", "./dist/").index_file("index.html"))
+            //.service(get_)
             .default_service(
                 web::route().to(|| HttpResponse::NotFound()),  //header("Location", "/").finish()
             )
@@ -66,7 +139,4 @@ async fn main() -> std::io::Result<()> {
     .run()
     .await
 }
-
-
-
 
