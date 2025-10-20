@@ -2,10 +2,14 @@ use std::{collections::HashMap, path::PathBuf};
 use hdf5::{types::FixedAscii, Dataset, File, H5Type, Result};
 //use ndarray::{arr2, s};
 
-use my_web_app::ClusterRequestResponse;
+use my_web_app::countfile_struct::CountFileMat;
+use my_web_app::countfile_struct::CountFileMetaColumnDesc;
+use my_web_app::countfile_struct::CountFileRed;
+use my_web_app::ClusterResponse;
 use my_web_app::CountFileMetaColumnData;
-use my_web_app::MetadataColumnRequestResponse;
-use my_web_app::ReductionRequestResponse;
+use my_web_app::DatasetDescResponse;
+use my_web_app::MetadataColumnResponse;
+use my_web_app::ReductionResponse;
 
 use ndarray::Axis;
 use serde::Deserialize;
@@ -32,7 +36,7 @@ impl CountFile {
 
     ////////////////////////////////////////////////////////////
     /// 
-    pub fn get_counts_for_cell(&self, count_name: &String, row: u32) -> anyhow::Result<ClusterRequestResponse> {
+    pub fn get_counts_for_cell(&self, count_name: &String, row: u32) -> anyhow::Result<ClusterResponse> {
         //H5T_IEEE_F64LE
 
         let group_counts = self.file.group("/counts")?; 
@@ -58,7 +62,7 @@ impl CountFile {
             row_start..row_end
         )?.iter().map(|x| *x).collect::<Vec<_>>();
 
-        let v = ClusterRequestResponse {
+        let v = ClusterResponse {
             indices: ret_indices,
             data: ret_data
         };
@@ -71,7 +75,7 @@ impl CountFile {
 
     ////////////////////////////////////////////////////////////
     /// 
-    pub fn get_reduction(&self, reduction_name: &String) -> anyhow::Result<ReductionRequestResponse> {
+    pub fn get_reduction(&self, reduction_name: &String) -> anyhow::Result<ReductionResponse> {
 
         let group_counts = self.file.group("/reductions")?; 
         let df_thisred = group_counts.dataset(&reduction_name)?;
@@ -91,7 +95,7 @@ impl CountFile {
 
         //println!("got {:?}",x);
 
-        let out = ReductionRequestResponse {
+        let out = ReductionResponse {
             x,y
         };
         Ok(out)
@@ -102,7 +106,7 @@ impl CountFile {
 
     ////////////////////////////////////////////////////////////
     /// 
-    pub fn get_metacolumn(&self, column_name: &String) -> anyhow::Result<MetadataColumnRequestResponse> {
+    pub fn get_metacolumn(&self, column_name: &String) -> anyhow::Result<MetadataColumnResponse> {
 
         let group_meta = self.file.group("/obs")?; 
 
@@ -115,7 +119,7 @@ impl CountFile {
                 let df_thiscol = group_meta.dataset(&column_name)?;
                 let data = read_hdf5_f32vec(&df_thiscol)?;                
 
-                let out = MetadataColumnRequestResponse {
+                let out = MetadataColumnResponse {
                     data: CountFileMetaColumnData::Numeric(data)
                 };
                 Ok(out)                
@@ -127,7 +131,7 @@ impl CountFile {
                 let df_thiscol = group_thiscol.dataset("codes")?;
                 let data = read_hdf5_intvec(&df_thiscol)?;                
 
-                let out = MetadataColumnRequestResponse {
+                let out = MetadataColumnResponse {
                     data: CountFileMetaColumnData::Categorical(data, cats.clone())
                 };
                 Ok(out)                
@@ -137,63 +141,20 @@ impl CountFile {
     }    
 
 
+    ////////////////////////////////////////////////////////////
+    /// 
+    pub fn get_desc(&self) -> anyhow::Result<DatasetDescResponse> {
+        Ok(DatasetDescResponse {
+            matrices: self.matrices.clone(),
+            reductions: self.reductions.clone(),
+            meta: self.meta.clone(),
+        })
+    }    
 
 
 }
 
 
-
-
-////////////////////////////////////////////////////////////
-/// 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CountFileMat {
-    pub list_feature_names: Vec<String>,  // Compact, but would a hashmap be better? or treemap ideally?
-    pub list_indptr: Vec<u32>,
-}
-impl CountFileMat {
-}
-
-
-
-
-////////////////////////////////////////////////////////////
-/// 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CountFileRed {
-    pub num_sample: usize,
-    pub num_dim: usize,
-}
-impl CountFileRed {
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////
-/// 
-#[derive(Debug, Deserialize, Serialize)]
-pub enum CountFileMetaColumnDesc {
-    Numeric(),
-    Categorical(Vec<String>),
-}
-impl CountFileMetaColumnDesc {
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////
-/// 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CountFileMeta {
-    pub names: Vec<String>,
-    pub columns: Vec<CountFileMetaColumnDesc>
-}
-impl CountFileRed {
-}
 
 
 

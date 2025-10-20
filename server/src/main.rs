@@ -10,8 +10,8 @@ use std::io::BufReader;
 use actix_files::Files;
 use actix_web::http::header::ContentType;
 use actix_web::web::Json;
-use actix_web::{web, web::Data, App, HttpResponse, HttpServer, get, post};
-use my_web_app::{ClusterRequest, MetadataColumnRequest, ReductionRequest};
+use actix_web::{web, web::Data, App, HttpResponse, HttpServer, post};
+use my_web_app::{ClusterRequest, DatasetDescRequest, MetadataColumnRequest, ReductionRequest};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -100,6 +100,25 @@ async fn get_metacolumn(server_data: Data<Mutex<ServerData>>, req_body: web::Jso
 
 
 ////////////////////////////////////////////////////////////
+/// REST entry point
+#[post("/get_dataset_desc")]
+async fn get_dataset_desc(server_data: Data<Mutex<ServerData>>, req_body: web::Json<DatasetDescRequest>) -> Result<HttpResponse, MyError> { 
+
+    println!("get_dataset_desc {:?}",req_body);
+    //let Json(_req) = req_body;
+
+    let server_data =server_data.lock().unwrap();
+    let mat = server_data.bdir.counts.get_desc()?; 
+    let ser_out = serde_cbor::to_vec(&mat)?;
+
+    Ok(HttpResponse::Ok()
+        .content_type(ContentType::octet_stream())
+        .body(ser_out))
+}
+
+
+
+////////////////////////////////////////////////////////////
 /// Backend entry point
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -129,6 +148,8 @@ async fn main() -> std::io::Result<()> {
             .wrap(actix_web::middleware::Logger::default())  //for debugging
             .service(get_featurecounts)
             .service(get_reduction)
+            .service(get_metacolumn)
+            .service(get_dataset_desc)
             .service(Files::new("/", "./dist/").index_file("index.html"))
             //.service(get_)
             .default_service(

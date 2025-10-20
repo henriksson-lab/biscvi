@@ -1,16 +1,12 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
+pub mod countfile_struct;
 
-
-
-/*
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct StrainRequest {
-    pub list: Vec<String>
-}
- */
-
+use countfile_struct::CountFileMat;
+use countfile_struct::CountFileMetaColumnDesc;
+use countfile_struct::CountFileRed;
 
 
 
@@ -26,7 +22,7 @@ pub struct ReductionRequest {
 ////////////////////////////////////////////////////////////
 /// 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ReductionRequestResponse {
+pub struct ReductionResponse {
     pub x: Vec<f32>,
     pub y: Vec<f32>,
 }
@@ -34,7 +30,7 @@ pub struct ReductionRequestResponse {
 
 
 
-////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////      is this a bad name???
 /// 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ClusterRequest {
@@ -42,12 +38,10 @@ pub struct ClusterRequest {
     pub row: u32,
 }
 
-
-
 ////////////////////////////////////////////////////////////
 /// 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ClusterRequestResponse {
+pub struct ClusterResponse {
     pub indices: Vec<u32>,
     pub data: Vec<f32>     ////////// nooo! not really! several options?
 }
@@ -83,8 +77,32 @@ impl CountFileMetaColumnData {
 ////////////////////////////////////////////////////////////
 /// 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct MetadataColumnRequestResponse {
+pub struct MetadataColumnResponse {
     pub data: CountFileMetaColumnData
+}
+
+
+
+
+
+
+
+////////////////////////////////////////////////////////////
+/// 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct DatasetDescRequest {
+}
+
+
+
+
+////////////////////////////////////////////////////////////
+/// 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct DatasetDescResponse {
+    pub matrices: HashMap<String, CountFileMat>,
+    pub reductions: HashMap<String, CountFileRed>,    
+    pub meta: HashMap<String, CountFileMetaColumnDesc>,
 }
 
 

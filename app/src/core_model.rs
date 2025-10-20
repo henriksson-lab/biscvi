@@ -1,17 +1,18 @@
 
 
+use my_web_app::DatasetDescRequest;
+use my_web_app::DatasetDescResponse;
 use my_web_app::ReductionRequest;
+use my_web_app::ReductionResponse;
+
 use web_sys::window;
 use yew::prelude::*;
 
-use my_web_app::ClusterRequestResponse;
-use my_web_app::ReductionRequestResponse;
 use bytes::Buf;
 
 ////////////////////////////////////////////////////////////
 /// Which page is currently being shown?
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Debug,PartialEq)]
 pub enum CurrentPage {
     Home,
     Files,
@@ -27,8 +28,11 @@ pub enum Msg {
 
     OpenPage(CurrentPage),
 
+    GetDatasetDesc(),
+    SetDatasetDesc(DatasetDescResponse),
+
     GetReduction(String),
-    SetReduction(ReductionRequestResponse)
+    SetReduction(ReductionResponse)
 
 }
 
@@ -38,6 +42,8 @@ pub enum Msg {
 /// State of the page
 pub struct Model {
     pub current_page: CurrentPage,
+    pub current_reduction: Option<String>,
+    pub current_datadesc: Option<DatasetDescResponse>,
 }
 
 impl Component for Model {
@@ -50,17 +56,20 @@ impl Component for Model {
     /// Create a new component
     fn create(ctx: &Context<Self>) -> Self {
 
-        ctx.link().send_message(Msg::GetReduction("kraken_umap".into()));
+        ctx.link().send_message(Msg::GetDatasetDesc());
+//        ctx.link().send_message(Msg::GetReduction("kraken_umap".into()));
 
 //        ctx.link().send_message(MsgUMAP::GetReduction());
 
-
+        log::debug!("fooo");
 
 
 
 
         Self {
             current_page: CurrentPage::Home,
+            current_reduction: None,
+            current_datadesc: None,
         }
     }
 
@@ -79,46 +88,45 @@ impl Component for Model {
                 true
             },
 
-            /*
-            
-            
-            Msg::GetReduction(reduction_name) => { ///////////////////////////// all sorts of data
 
-                //TODO need to get a list of reductions, metadata etc
-
+            ////////////////////////////////////////////////////////////
+            // Message: Get general dataset description
+            Msg::GetDatasetDesc() => {
+                let query = DatasetDescRequest {
+                };
+                let query_json = serde_json::to_vec(&query).expect("Could not convert to json");
                 
-                async fn get_data() -> Msg {
+                let get_data = async move {
                     let client = reqwest::Client::new();
                     //log::debug!("get coloring");
-                    let res = client.get(format!("{}/get_reduction",get_host_url()))
+                    let res = client.post(format!("{}/get_dataset_desc",get_host_url()))
                         .header("Content-Type", "application/json")
-                        .body("") // no body
+                        .body(query_json) 
                         .send()
                         .await
-                        .expect("Failed to send request").bytes().await.expect("Could not get binary data");
-                    //log::debug!("got bytes");
+                        .expect("Failed to send request")
+                        .bytes()
+                        .await
+                        .expect("Could not get binary data");
                     let res = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
-                    //log::debug!("got deserialized");
-
-
-                    Msg::SetReduction(res)
-                }
-                ctx.link().send_future(get_data());
+                    Msg::SetDatasetDesc(res)
+                };
+                ctx.link().send_future(get_data);
                 false
             },
 
-             */
-                //TODO need to get a list of reductions, metadata etc
-
-
-
-
+            ////////////////////////////////////////////////////////////
+            // Message: Set reduction data, sent from server
+            Msg::SetDatasetDesc(res) => {
+                log::debug!("got desc {:?}",res);
+                self.current_datadesc = Some(res);
+                true
+            },
 
 
             ////////////////////////////////////////////////////////////
             // Message: Get a given reduction
             Msg::GetReduction(reduction_name) => {
-
                 let query = ReductionRequest {
                     reduction_name: reduction_name
                 };
@@ -126,7 +134,6 @@ impl Component for Model {
                 
                 let get_data = async move {
                     let client = reqwest::Client::new();
-                    //log::debug!("get coloring");
                     let res = client.post(format!("{}/get_reduction",get_host_url()))
                         .header("Content-Type", "application/json")
                         .body(query_json) 
@@ -136,14 +143,9 @@ impl Component for Model {
                         .bytes()
                         .await
                         .expect("Could not get binary data");
-                    //log::debug!("got bytes");
                     let res = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
-                    //log::debug!("got deserialized");
-
-
                     Msg::SetReduction(res)
                 };
-
                 ctx.link().send_future(get_data);
                 false
             },
@@ -151,7 +153,7 @@ impl Component for Model {
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
             Msg::SetReduction(res) => {
-                println!("got reduction {:?}",res);
+                log::debug!("got reduction {:?}",res);
                 true
             },
 
