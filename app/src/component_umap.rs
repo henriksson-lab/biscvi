@@ -3,7 +3,9 @@ use std::io::BufRead;
 use std::io::Cursor;
 use std::io::BufReader;
 
-use bytes::Buf;
+use my_web_app::ReductionResponse;
+use serde::Deserialize;
+use serde::Serialize;
 //use my_web_app::{UmapData, UmapMetadata};
 use wasm_bindgen::JsCast;
 use web_sys::{DomRect, EventTarget, HtmlCanvasElement, HtmlSelectElement, WebGlRenderingContext as GL};
@@ -13,10 +15,82 @@ use yew::Properties;
 use crate::camera::Camera2D;
 use crate::camera::Rectangle2D;
 use crate::umap_index::UmapPointIndex;
-use crate::{core_model::get_host_url};
 
 
 // see https://github.com/yewstack/yew/blob/master/examples/webgl/src/main.rs
+
+
+
+
+////////////////////////////////////////////////////////////
+/// 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct UmapData {
+    pub num_point: usize,
+    pub data: Vec<f32>,
+    //pub ids: Vec<String>, //cluster_id
+
+    pub max_x: f32,
+    pub max_y: f32,
+    pub min_x: f32,
+    pub min_y: f32,
+}
+    //    keep this in a cache? x,y and xy together??
+
+
+pub fn from_response_to_umap_data(resp: ReductionResponse) -> UmapData {
+
+    let num_point= resp.x.len();
+
+    //Figure out UMAP point range
+    let mut max_x = f32::MIN;
+    let mut max_y = f32::MIN;
+    let mut min_x = f32::MAX;
+    let mut min_y = f32::MAX;
+
+    resp.x.iter().for_each(|v|{
+        max_x = max_x.max(*v);
+        min_x = min_x.min(*v);
+    });
+
+    resp.y.iter().for_each(|v|{
+        max_y = max_y.max(*v);
+        min_y = min_y.min(*v);
+    });
+
+    //Convert coordinates to flat list. better to send in this format already?  --- code is likely fairly slow in current design
+    let mut data:Vec<f32> = Vec::with_capacity(num_point*2);
+    unsafe {
+        data.set_len(num_point*2);
+    }
+
+    resp.x.iter().enumerate().for_each(|(i,v)| {
+        data[i*2] = *v;
+    });
+
+    resp.y.iter().enumerate().for_each(|(i,v)| {
+        data[i*2+1] = *v;
+    });
+
+    /*
+    is above faster? it should eliminate a bound check at minimum. but would be great if we could instead do below unsafely
+    for i in 0..num_point {
+        data[i*2] = resp.x[i];
+        data[i*2+1] = resp.y[i];
+    }
+     */
+
+    UmapData {
+        num_point: num_point,
+        data: data,
+        max_x: max_x,
+        max_y: max_y,
+        min_x: min_x,
+        min_y: min_y
+    }
+}
+
+
 
 
 
@@ -62,8 +136,10 @@ pub enum MsgUMAP {
 /// x
 #[derive(Properties, PartialEq)]
 pub struct Props {
-    pub on_cell_hovered: Callback<Option<String>>,
-    pub on_cell_clicked: Callback<Vec<String>>,
+    pub on_cell_hovered: Callback<Option<usize>>,
+    pub on_cell_clicked: Callback<Vec<usize>>,
+//    pub on_cell_hovered: Callback<Option<String>>,
+//    pub on_cell_clicked: Callback<Vec<String>>,
 }
 
 
@@ -72,9 +148,9 @@ pub struct Props {
 /// Wrap gl in Rc (Arc for multi-threaded) so it can be injected into the render-loop closure.
 pub struct UmapView {
     node_ref: NodeRef,
-    //umap: Option<UmapData>,
+    umap: Option<UmapData>,
     last_pos: (f32,f32),
-    last_cell: Option<String>,
+    last_cell: Option<usize>,
     umap_index: UmapPointIndex,
 
     //coloring: UmapMetadata,
@@ -98,7 +174,7 @@ impl UmapView {
             self.color_dict.get("default")
         ).expect(
             &format!{"Cannot find palette /{}/", self.current_coloring}
-        ) //.clone()
+        )
     } 
 }
 
@@ -111,7 +187,7 @@ impl Component for UmapView {
 
     ////////////////////////////////////////////////////////////
     /// x
-    fn create(ctx: &Context<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
 
         //ctx.link().send_message(MsgUMAP::GetCoord);
         //ctx.link().send_message(MsgUMAP::GetColoring);
@@ -128,7 +204,7 @@ impl Component for UmapView {
     
         Self {
             node_ref: NodeRef::default(),
-            //umap: None,
+            umap: None,
             last_pos: (0.0,0.0),
             last_cell: None,
             umap_index: UmapPointIndex::new(), //tricky... adapt to umap size??
@@ -212,13 +288,15 @@ impl Component for UmapView {
                 //log::debug!("p: {:?}",cp);
                 //log::debug!("{} {}",x,y);
 
-                let mut point_name = None;
+                let point_name = cp;
+                /*
                 if let Some(umap) = &self.umap {
                     if let Some(cp) = cp {
                         point_name = Some(umap.ids.get(cp).unwrap().clone());                      
                     }
                 }
-
+                 */
+                
                 //If we hover a new point, emit signal
                 let point_changed = self.last_cell != point_name;
                 self.last_cell = point_name.clone();
@@ -304,9 +382,9 @@ impl Component for UmapView {
 
             MsgUMAP::SelectCurrentTool(t) => {
                 if t==CurrentTool::ZoomAll {
-//                    if let Some(umap) = &self.umap {
-//                        self.camera.fit_umap(umap);
-//                    }
+                    if let Some(umap) = &self.umap {
+                        self.camera.fit_umap(umap);
+                    }
                 } else {
                     self.current_tool=t;
                 }
@@ -365,7 +443,8 @@ impl Component for UmapView {
                                 let py = *vertices.get(i*2+1).unwrap();
                                 //log::debug!("{} {}", px, py);
                                 if px>x1 && px<x2 && py>y1 && py<y2 { /////////////////////// TODO - invert y axis??   ////////////////// points halfway down are at y=500
-                                    let point_name = umap.ids.get(i).unwrap().clone();
+                                    let point_name = i;
+                                    //let point_name = umap.ids.get(i).unwrap().clone();
                                     selected_vert.push(point_name);
                                 }
                             }
@@ -429,10 +508,10 @@ impl Component for UmapView {
             });
         }
  */
+        /*
         
         let list_colors = self.get_current_palette();
 
-        /*
         //List colors for this factor
         let mut list_levels = Vec::new();
         if let Some(coloring) = self.coloring.colorings.get(&self.current_coloring) {
@@ -542,6 +621,8 @@ impl Component for UmapView {
                 </div>
 
                 //Overlay SVG
+                /*
+                //name of cell
                 <div style="position: absolute; left:0; top:0; display: flex; pointer-events: none; ">  
                     <svg style="width: 800px; height: 500px; pointer-events: none;"> // note: WxH must cover canvas!!  
                         <text x=10 y=15 style="font-family: 'Roboto', sans-serif;">
@@ -550,7 +631,8 @@ impl Component for UmapView {
                         { html_select }
                     </svg>
                 </div>
-
+                */
+                
                 // Button: Select
                 <div style={tool_style(760, self.current_tool==CurrentTool::Select)} onclick={click_select}>
                     <svg data-icon="polygon-filter" height="16" role="img" viewBox="0 0 16 16" width="16"><path d="M14 5c-.24 0-.47.05-.68.13L9.97 2.34c.01-.11.03-.22.03-.34 0-1.1-.9-2-2-2S6 .9 6 2c0 .04.01.08.01.12L2.88 4.21C2.61 4.08 2.32 4 2 4 .9 4 0 4.9 0 6c0 .74.4 1.38 1 1.72v4.55c-.6.35-1 .99-1 1.73 0 1.1.9 2 2 2 .74 0 1.38-.4 1.72-1h4.55c.35.6.98 1 1.72 1 1.1 0 2-.9 2-2 0-.37-.11-.7-.28-1L14 9c1.11-.01 2-.9 2-2s-.9-2-2-2zm-4.01 7c-.73 0-1.37.41-1.71 1H3.73c-.18-.3-.43-.55-.73-.72V7.72c.6-.34 1-.98 1-1.72 0-.04-.01-.08-.01-.12l3.13-2.09c.27.13.56.21.88.21.24 0 .47-.05.68-.13l3.35 2.79c-.01.11-.03.22-.03.34 0 .37.11.7.28 1l-2.29 4z" fill-rule="evenodd"></path></svg>
@@ -645,6 +727,7 @@ impl Component for UmapView {
             let mut vertices_color:Vec<f32> = Vec::new();
 
             //Get color data  .. same length??
+            /*
             let coloring = self.coloring.colorings.get(&self.current_coloring);
             if let Some(coloring) = coloring {
                 //let div_color = (coloring.list_levels.len()) as f32;  //+1 needed as 0=1 in HSV  1+ 
@@ -670,15 +753,25 @@ impl Component for UmapView {
 
             } else {
                 //log::debug!("coloring missing");
+ */
+            
+            vertices_color.reserve(num_points*3);
+            for i in 0..num_points {
+                vertices_color.push(*vertices.get(i*2+0).unwrap());
+                vertices_color.push(*vertices.get(i*2+1).unwrap());
+                vertices_color.push(0.0); ///////////////////////////////////////////////// color index. remove, put in separate buffer
+            }
 
-                vertices_color.reserve(num_points*3);
-                for i in 0..num_points {
-                    vertices_color.push(*vertices.get(i*2+0).unwrap());
-                    vertices_color.push(*vertices.get(i*2+1).unwrap());
-                    vertices_color.push(0.0);
-                }
+            // regl: colorBuffer
+            // https://regl-project.github.io
+            // gl.bufferData(buffer.type, data, usage)
+            // https://github.com/regl-project/regl/blob/main/lib/buffer.js
 
-            };
+            // make a yew-like equivalent to REGL?
+            // https://stackoverflow.com/questions/8281653/how-to-choose-between-gl-stream-draw-or-gl-dynamic-draw
+            // https://registry.khronos.org/OpenGL-Refpages/gl4/html/glBindBuffer.xhtml   GL_UNIFORM_BUFFER
+            // https://community.khronos.org/t/rebuffering-a-color-array-object/66254    GL_COLOR_ARRAY exists
+//            };
 
 
             //Connect vertex array to GL

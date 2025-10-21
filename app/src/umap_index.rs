@@ -1,9 +1,12 @@
-use my_web_app::UmapData;
+//use my_web_app::UmapData;
+
 
 /// This data structure takes quite a while to build... 
 /// do it asynch, after rendering, or provide a simpler algo?
 
 use std::collections::HashMap;
+
+use crate::component_umap::UmapData;
 
 
 type Sector = (i32,i32);

@@ -4,6 +4,7 @@ pub mod model_files;
 pub mod camera;
 pub mod component_umap;
 pub mod umap_index;
+pub mod appstate;
 
 use crate::core_model::*;
 

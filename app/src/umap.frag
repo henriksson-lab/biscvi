@@ -1,5 +1,6 @@
 precision mediump float;
 
+// consider adapting https://github.com/chanzuckerberg/cellxgene/blob/main/client/src/components/scatterplot/drawPointsRegl.js
 
 varying lowp vec3 color;
 

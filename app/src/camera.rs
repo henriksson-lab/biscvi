@@ -1,3 +1,5 @@
+use crate::component_umap::UmapData;
+
 
 ////////////////////////////////////////////////////////////
 /// x
@@ -41,7 +43,6 @@ impl Camera2D {
     }
 
 
-    /* 
     ////////////////////////////////////////////////////////////
     /// x
     pub fn fit_umap(&mut self, umap: &UmapData) {
@@ -56,7 +57,6 @@ impl Camera2D {
         self.zoom_y = margin/(world_dy/2.0);
     }
 
-    */
 
     ////////////////////////////////////////////////////////////
     /// Zoom around this position.

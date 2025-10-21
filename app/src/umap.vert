@@ -3,6 +3,8 @@ precision mediump float;
 
 attribute vec3 a_position;
 varying highp vec3 color;
+///// attribute vec3 color;
+
 
 uniform float u_camera_x;
 uniform float u_camera_y;
@@ -46,7 +48,7 @@ void main() {
 
     //Set color based on lookup. 99 colors
     color = vec3(0.0, 0.0, 0.0);
-    //COLORBLOCK//
+    
 
 }
 

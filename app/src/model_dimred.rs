@@ -1,4 +1,4 @@
-use crate::core_model::*;
+use crate::{component_umap::UmapView, core_model::*};
 
 use yew::prelude::*;
 
@@ -28,13 +28,24 @@ impl Model {
 
         }
 
+        let on_cell_hovered = Callback::from(move |_name: Option<usize>| {
+        });
+
+        let on_cell_clicked = Callback::from(move |_name: Vec<usize>| {
+        });
+
+       // let on_cell_clicked= ctx.link().callback(move |name: Vec<usize>| {
+            //Msg::ClickSequence(name)
+        //});
+
+
 
         html! {
             <div>
                 <div class="biscvi-dimred-maindiv">
                     {"UMAP here"}            
 
-                    
+                    <UmapView on_cell_hovered={on_cell_hovered} on_cell_clicked={on_cell_clicked}/>
 
                 </div>
                 <div class="biscvi-dimred-leftdiv">

@@ -1,5 +1,8 @@
 
 
+use std::sync::Arc;
+use std::sync::Mutex;
+
 use my_web_app::DatasetDescRequest;
 use my_web_app::DatasetDescResponse;
 use my_web_app::ReductionRequest;
@@ -9,6 +12,8 @@ use web_sys::window;
 use yew::prelude::*;
 
 use bytes::Buf;
+
+use crate::appstate::BiscviData;
 
 ////////////////////////////////////////////////////////////
 /// Which page is currently being shown?
@@ -42,10 +47,10 @@ pub enum Msg {
 /// State of the page
 pub struct Model {
     pub current_page: CurrentPage,
-    pub current_reduction: Option<String>,
-    pub current_datadesc: Option<DatasetDescResponse>,
+    pub current_reduction: Option<String>,              //should be state of a page; move later
+    pub current_datadesc: Option<DatasetDescResponse>,  //For now, makes sense to keep this here, as it is static. but risks becoming really large
+    pub current_data: Arc<Mutex<BiscviData>>,           //Has interior mutability. Yew will not be able to sense updates! Need to signal in other ways
 }
-
 impl Component for Model {
     type Message = Msg;
 
@@ -58,18 +63,17 @@ impl Component for Model {
 
         ctx.link().send_message(Msg::GetDatasetDesc());
 //        ctx.link().send_message(Msg::GetReduction("kraken_umap".into()));
-
 //        ctx.link().send_message(MsgUMAP::GetReduction());
 
-        log::debug!("fooo");
+//        log::debug!("fooo");
 
-
-
+        let current_data = Arc::new(Mutex::new(BiscviData::new()));
 
         Self {
             current_page: CurrentPage::Home,
             current_reduction: None,
             current_datadesc: None,
+            current_data: current_data,
         }
     }
 
