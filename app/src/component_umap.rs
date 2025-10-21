@@ -8,8 +8,8 @@ use serde::Deserialize;
 use serde::Serialize;
 //use my_web_app::{UmapData, UmapMetadata};
 use wasm_bindgen::JsCast;
-use web_sys::{DomRect, EventTarget, HtmlCanvasElement, HtmlSelectElement, WebGlRenderingContext as GL};
-use yew::{html, Callback, Component, Context, Event, Html, MouseEvent, NodeRef, WheelEvent};
+use web_sys::{DomRect, EventTarget, HtmlCanvasElement, WebGlRenderingContext as GL};
+use yew::{html, Callback, Component, Context, Html, MouseEvent, NodeRef, WheelEvent};
 use yew::Properties;
 
 use crate::appstate::AsyncData;

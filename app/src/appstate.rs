@@ -1,8 +1,4 @@
-use std::{collections::HashMap, pin::Pin, sync::Arc};
-
-use my_web_app::ReductionResponse;
-use yew::html::{ImplicitClone, IntoPropValue};
-
+use std::{collections::HashMap, sync::Arc};
 use crate::component_umap::UmapData;
 
 

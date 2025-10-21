@@ -1,5 +1,5 @@
 use std::{collections::HashMap, path::PathBuf};
-use hdf5::{types::FixedAscii, Dataset, File, H5Type, Result};
+use hdf5::File;
 //use ndarray::{arr2, s};
 
 use my_web_app::countfile_struct::CountFileMat;
@@ -12,8 +12,6 @@ use my_web_app::MetadataColumnResponse;
 use my_web_app::ReductionResponse;
 
 use ndarray::Axis;
-use serde::Deserialize;
-use serde::Serialize;
 
 
 use anyhow::Context;
