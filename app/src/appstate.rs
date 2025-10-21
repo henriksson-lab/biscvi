@@ -37,17 +37,18 @@ impl BiscviData {
 }
 
 
-//#[derive(Clone)]
+#[derive(Debug)]
 pub enum AsyncData<T> {
     NotLoaded,
     Loading,
     Loaded(Arc<T>)
 }
-
 impl<T> AsyncData<T> {
+
     pub fn new(data: T) -> AsyncData<T> {
         AsyncData::Loaded(Arc::new(data))
     }
+    
 }
 
 /* 
@@ -58,7 +59,8 @@ impl<T> ImplicitClone for AsyncData<T> {
 */
 
 
-//Ensure cloning just clones the Arc; not sure why derive(Clone) does not automatically understand this
+//Ensure cloning just clones the Arc;
+//derive(Clone) adds overly restrictive requirements on T
 impl<T> Clone for AsyncData<T> {
     fn clone(&self) -> Self {
         match self {

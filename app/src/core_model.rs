@@ -63,7 +63,7 @@ impl Component for Model {
     fn create(ctx: &Context<Self>) -> Self {
 
         ctx.link().send_message(Msg::GetDatasetDesc());
-//        ctx.link().send_message(Msg::GetReduction("kraken_umap".into()));
+        ctx.link().send_message(Msg::GetReduction("kraken_umap".into()));
 //        ctx.link().send_message(MsgUMAP::GetReduction());
 
 //        log::debug!("fooo");
@@ -123,7 +123,7 @@ impl Component for Model {
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
             Msg::SetDatasetDesc(res) => {
-                log::debug!("got desc {:?}",res);
+                //log::debug!("got desc {:?}",res);
                 self.current_datadesc = Some(res);
                 true
             },
@@ -134,11 +134,13 @@ impl Component for Model {
             Msg::GetReduction(reduction_name) => {
 
                 //Show new reduction
+                log::debug!("ask for reduction {:?}",reduction_name);
                 self.current_reduction = Some(reduction_name.clone());
 
                 //Insert a loading place holder until data received
                 let mut current_data = self.current_data.lock().unwrap();
                 current_data.reductions.insert(reduction_name.clone(), AsyncData::Loading);
+                log::debug!("for now added Loading reduction {:?}",reduction_name);
 
                 //Request data
                 let query = ReductionRequest {
@@ -157,6 +159,7 @@ impl Component for Model {
                         .bytes()
                         .await
                         .expect("Could not get binary data");
+                    //log::debug!("sent reduction request {:?}",res);
                     let res = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
                     Msg::SetReduction(reduction_name, res)
                 };
@@ -170,12 +173,13 @@ impl Component for Model {
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
             Msg::SetReduction(reduction_name, res) => {
-                log::debug!("got reduction {:?}",res);
+                //log::debug!("set reduction from server {} :: {:?}; this should trigger a refresh??",reduction_name, res);
+                log::debug!("set reduction from server {} ",reduction_name);
 
                 let mut current_data = self.current_data.lock().unwrap();
                 let umap_data = from_response_to_umap_data(res);
                 
-                current_data.reductions.insert(reduction_name, AsyncData::new(umap_data));  //make a new method
+                current_data.reductions.insert(reduction_name, AsyncData::new(umap_data));
 
                 true
             },

@@ -142,7 +142,6 @@ pub struct Props {
     pub on_cell_clicked: Callback<Vec<usize>>,
 
     pub umap: AsyncData<UmapData>, 
-    //self.current_reduction 
 //    pub on_cell_hovered: Callback<Option<String>>,
 //    pub on_cell_clicked: Callback<Vec<String>>,
 }
@@ -153,7 +152,7 @@ pub struct Props {
 /// Wrap gl in Rc (Arc for multi-threaded) so it can be injected into the render-loop closure.
 pub struct UmapView {
     node_ref: NodeRef,
-    umap: Option<UmapData>,
+    //umap: Option<UmapData>,
     last_pos: (f32,f32),
     last_cell: Option<usize>,
     umap_index: UmapPointIndex,
@@ -169,6 +168,8 @@ pub struct UmapView {
     color_dict: HashMap<String, Vec<String>>,
     // list_colors: Vec<String>,
     // colorblock: String,
+
+    last_umap: AsyncData<UmapData>
 }
 
 impl UmapView {
@@ -209,7 +210,7 @@ impl Component for UmapView {
     
         Self {
             node_ref: NodeRef::default(),
-            umap: None,
+            //umap: None,
             last_pos: (0.0,0.0),
             last_cell: None,
             umap_index: UmapPointIndex::new(), //tricky... adapt to umap size??
@@ -223,6 +224,8 @@ impl Component for UmapView {
 
             // list_colors: list_colors,
             // colorblock: colorblock,
+
+            last_umap: AsyncData::NotLoaded,
         }
     }
 
@@ -233,51 +236,7 @@ impl Component for UmapView {
     ////////////////////////////////////////////////////////////
     /// Handle an update message
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-
-            /*
-            MsgUMAP::SetCoord(data) => {
-                //log::debug!("got {:?}",data);
-                if let Some(umap) = &data {
-                    //Figure out mindist; 5% of umap size 
-                    let world_dx = umap.max_x - umap.min_x;
-                    let world_dy = umap.max_y - umap.min_y;
-                    let span = world_dx.min(world_dy);      //this is a bit nasty. umap better be somewhat square
-
-                    self.umap_index.build_point_index(&umap, span*0.05); 
-                } else {
-                    self.umap_index.clear();
-                }
-
-                if let Some(umap) = &data {
-                    self.camera.fit_umap(&umap);
-                }
-
-                self.umap = data;
-                true
-            },
-
-            MsgUMAP::GetCoord => {
-                //log::debug!("sending {}", json);
-                async fn get_data() -> MsgUMAP {
-                    let client = reqwest::Client::new();
-                    //log::debug!("asking for umap");
-                    let res = client.get(format!("{}/get_umap",get_host_url()))
-                        .header("Content-Type", "application/json")
-                        .body("") // no body
-                        .send()
-                        .await
-                        .expect("Failed to send request").bytes().await.expect("Could not get binary data");
-                    //log::debug!("got umap");
-                    let res = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
-                    //log::debug!("deserialized umap");
-                    MsgUMAP::SetCoord(Some(res))
-                }
-                ctx.link().send_future(get_data());
-                false
-            },
- */
-            
+        match msg {            
 
             MsgUMAP::MouseMove(x,y, press_left) => {
                 let mut do_update = false;
@@ -342,41 +301,9 @@ impl Component for UmapView {
                 true
             },
 
-
-
             MsgUMAP::MouseClick => {
                 false
             },
-
-
-/*
-            MsgUMAP::GetColoring => {
-                //log::debug!("sending {}", json);
-                async fn get_data() -> MsgUMAP {
-                    let client = reqwest::Client::new();
-                    //log::debug!("get coloring");
-                    let res = client.get(format!("{}/get_coloring",get_host_url()))
-                        .header("Content-Type", "application/json")
-                        .body("") // no body
-                        .send()
-                        .await
-                        .expect("Failed to send request").bytes().await.expect("Could not get binary data");
-                    //log::debug!("got bytes");
-                    let res = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
-                    //log::debug!("got deserialized");
-                    MsgUMAP::SetColoring(res)
-                }
-                ctx.link().send_future(get_data());
-                false            
-            },
-
-            MsgUMAP::SetColoring(coloring) => {
-                //log::debug!("{:?}",coloring);
-                self.coloring = coloring;                
-                self.current_coloring = self.coloring.colorings.keys().next().expect("No colors available").clone();
-                true
-            },
- */
 
             MsgUMAP::SetCurrentColoring(c) => {
                 //log::debug!("xxx {}",c);
@@ -386,8 +313,11 @@ impl Component for UmapView {
 
 
             MsgUMAP::SelectCurrentTool(t) => {
+
+                let umap = &ctx.props().umap;
+
                 if t==CurrentTool::ZoomAll {
-                    if let Some(umap) = &self.umap {
+                    if let AsyncData::Loaded(umap) = umap {
                         self.camera.fit_umap(umap);
                     }
                 } else {
@@ -420,7 +350,9 @@ impl Component for UmapView {
                     rect.x2=wx;
                     rect.y2=wy;
 
-                    if let Some(umap) = &self.umap {
+                    let umap = &ctx.props().umap;
+
+                    if let AsyncData::Loaded(umap) = umap {
 
                         let (x1,x2) =rect.range_x();
                         let (y1,y2) =rect.range_y();
@@ -474,9 +406,15 @@ impl Component for UmapView {
     /// x
     fn view(&self, ctx: &Context<Self>) -> Html {
 
-        log::debug!("======================");
-        log::debug!("{:?}", self.umap);
+        /*
+        log::debug!("====================== render umap ");
+        let umap = &ctx.props().umap;
+        log::debug!("{:?}", umap);
         log::debug!("############################");
+ */
+        
+
+
 
 
         let mousemoved = ctx.link().callback(move |e: MouseEvent | { 
@@ -631,17 +569,17 @@ impl Component for UmapView {
                 </div>
 
                 //Overlay SVG
-                /*
-                //name of cell
                 <div style="position: absolute; left:0; top:0; display: flex; pointer-events: none; ">  
                     <svg style="width: 800px; height: 500px; pointer-events: none;"> // note: WxH must cover canvas!!  
+                        /*
+                        //name of cell
                         <text x=10 y=15 style="font-family: 'Roboto', sans-serif;">
                             { format!("{}", if let Some(c) = &self.last_cell {c.clone()} else {String::new()}) }
                         </text>
+                        */
                         { html_select }
                     </svg>
                 </div>
-                */
                 
                 // Button: Select
                 <div style={tool_style(760, self.current_tool==CurrentTool::Select)} onclick={click_select}>
@@ -686,9 +624,19 @@ impl Component for UmapView {
 
     ////////////////////////////////////////////////////////////
     /// x
-    fn rendered(&mut self, _ctx: &Context<Self>, _first_render: bool) {
+    fn rendered(&mut self, ctx: &Context<Self>, _first_render: bool) {
 
-        if let Some(umap) = &self.umap {
+        let prop_umap = &ctx.props().umap;
+
+
+        if let AsyncData::Loaded(umap) = prop_umap {
+
+            //Fit camera whenever we get a new umap to show
+            if self.last_umap != *prop_umap {
+                self.camera.fit_umap(umap);
+            }
+            self.last_umap = prop_umap.clone();
+
 
             // Only start the render loop if it's the first render
             // There's no loop cancellation taking place, so if multiple renders happen,
@@ -699,9 +647,8 @@ impl Component for UmapView {
             if !first_render {
                 return;
             }
-
             //////// why is this needed?
- */
+            */
             
 
             // Once rendered, store references for the canvas and GL context. These can be used for
