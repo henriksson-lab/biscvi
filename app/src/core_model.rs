@@ -13,7 +13,9 @@ use yew::prelude::*;
 
 use bytes::Buf;
 
+use crate::appstate::AsyncData;
 use crate::appstate::BiscviData;
+use crate::component_umap::from_response_to_umap_data;
 
 ////////////////////////////////////////////////////////////
 /// Which page is currently being shown?
@@ -37,7 +39,7 @@ pub enum Msg {
     SetDatasetDesc(DatasetDescResponse),
 
     GetReduction(String),
-    SetReduction(ReductionResponse)
+    SetReduction(String, ReductionResponse)
 
 }
 
@@ -52,10 +54,9 @@ pub struct Model {
     pub current_data: Arc<Mutex<BiscviData>>,           //Has interior mutability. Yew will not be able to sense updates! Need to signal in other ways
 }
 impl Component for Model {
+
     type Message = Msg;
-
     type Properties = ();
-
 
     ////////////////////////////////////////////////////////////
     /// Create a new component
@@ -128,14 +129,23 @@ impl Component for Model {
             },
 
 
-            ////////////////////////////////////////////////////////////
+            ////////////////////////////////////////////////////////////      ////////////////// call only when data needed?
             // Message: Get a given reduction
             Msg::GetReduction(reduction_name) => {
+
+                //Show new reduction
+                self.current_reduction = Some(reduction_name.clone());
+
+                //Insert a loading place holder until data received
+                let mut current_data = self.current_data.lock().unwrap();
+                current_data.reductions.insert(reduction_name.clone(), AsyncData::Loading);
+
+                //Request data
                 let query = ReductionRequest {
-                    reduction_name: reduction_name
+                    reduction_name: reduction_name.clone()
                 };
                 let query_json = serde_json::to_vec(&query).expect("Could not convert to json");
-                
+
                 let get_data = async move {
                     let client = reqwest::Client::new();
                     let res = client.post(format!("{}/get_reduction",get_host_url()))
@@ -148,16 +158,25 @@ impl Component for Model {
                         .await
                         .expect("Could not get binary data");
                     let res = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
-                    Msg::SetReduction(res)
+                    Msg::SetReduction(reduction_name, res)
                 };
                 ctx.link().send_future(get_data);
-                false
+
+                true //can already show loading status, so true
             },
+
+
 
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
-            Msg::SetReduction(res) => {
+            Msg::SetReduction(reduction_name, res) => {
                 log::debug!("got reduction {:?}",res);
+
+                let mut current_data = self.current_data.lock().unwrap();
+                let umap_data = from_response_to_umap_data(res);
+                
+                current_data.reductions.insert(reduction_name, AsyncData::new(umap_data));  //make a new method
+
                 true
             },
 

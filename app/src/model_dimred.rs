@@ -1,7 +1,6 @@
-use crate::{component_umap::UmapView, core_model::*};
+use crate::{appstate::AsyncData, component_umap::UmapView, core_model::*};
 
-use yew::prelude::*;
-
+use yew::{html::{ImplicitClone, IntoPropValue}, prelude::*};
 
 
 
@@ -11,6 +10,7 @@ impl Model {
     ////////////////////////////////////////////////////////////
     /// x
     pub fn view_dimred_page(&self, _ctx: &Context<Self>) -> Html {
+
 
         let mut list_meta:Vec<Html> = Vec::new();
 
@@ -38,6 +38,13 @@ impl Model {
             //Msg::ClickSequence(name)
         //});
 
+        //self.current_reduction
+        let mut current_umap_data = AsyncData::NotLoaded;
+        if let Some(current_reduction) = &self.current_reduction {
+            current_umap_data = self.current_data.lock().unwrap().get_reduction(current_reduction)  //reductions.get(current_reduction);
+        }
+
+        log::debug!("view_dimred_page");
 
 
         html! {
@@ -45,7 +52,7 @@ impl Model {
                 <div class="biscvi-dimred-maindiv">
                     {"UMAP here"}            
 
-                    <UmapView on_cell_hovered={on_cell_hovered} on_cell_clicked={on_cell_clicked}/>
+                    <UmapView on_cell_hovered={on_cell_hovered} on_cell_clicked={on_cell_clicked} umap={current_umap_data} />
 
                 </div>
                 <div class="biscvi-dimred-leftdiv">
@@ -72,3 +79,4 @@ impl Model {
 
 
 }
+

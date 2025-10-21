@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io::BufRead;
 use std::io::Cursor;
 use std::io::BufReader;
+use std::sync::Arc;
 
 use my_web_app::ReductionResponse;
 use serde::Deserialize;
@@ -12,6 +13,7 @@ use web_sys::{DomRect, EventTarget, HtmlCanvasElement, HtmlSelectElement, WebGlR
 use yew::{html, Callback, Component, Context, Event, Html, MouseEvent, NodeRef, WheelEvent};
 use yew::Properties;
 
+use crate::appstate::AsyncData;
 use crate::camera::Camera2D;
 use crate::camera::Rectangle2D;
 use crate::umap_index::UmapPointIndex;
@@ -138,6 +140,9 @@ pub enum MsgUMAP {
 pub struct Props {
     pub on_cell_hovered: Callback<Option<usize>>,
     pub on_cell_clicked: Callback<Vec<usize>>,
+
+    pub umap: AsyncData<UmapData>, 
+    //self.current_reduction 
 //    pub on_cell_hovered: Callback<Option<String>>,
 //    pub on_cell_clicked: Callback<Vec<String>>,
 }
@@ -468,6 +473,11 @@ impl Component for UmapView {
     ////////////////////////////////////////////////////////////
     /// x
     fn view(&self, ctx: &Context<Self>) -> Html {
+
+        log::debug!("======================");
+        log::debug!("{:?}", self.umap);
+        log::debug!("############################");
+
 
         let mousemoved = ctx.link().callback(move |e: MouseEvent | { 
             e.prevent_default();
