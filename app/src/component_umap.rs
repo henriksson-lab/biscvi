@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::io::BufRead;
 use std::io::Cursor;
 use std::io::BufReader;
-use std::sync::Arc;
 
 use my_web_app::ReductionResponse;
 use serde::Deserialize;
@@ -125,11 +124,6 @@ pub enum MsgUMAP {
     MouseStartSelect(f32,f32),
     MouseEndSelect(f32,f32),
 
-//    GetColoring,
-//    SetColoring(UmapMetadata),
-
-    SetCurrentColoring(String),
-
     SelectCurrentTool(CurrentTool),
 }
 
@@ -152,7 +146,6 @@ pub struct Props {
 /// Wrap gl in Rc (Arc for multi-threaded) so it can be injected into the render-loop closure.
 pub struct UmapView {
     node_ref: NodeRef,
-    //umap: Option<UmapData>,
     last_pos: (f32,f32),
     last_cell: Option<usize>,
     umap_index: UmapPointIndex,
@@ -166,8 +159,6 @@ pub struct UmapView {
     current_selection: Option<Rectangle2D>,
 
     color_dict: HashMap<String, Vec<String>>,
-    // list_colors: Vec<String>,
-    // colorblock: String,
 
     last_umap: AsyncData<UmapData>
 }
@@ -195,18 +186,12 @@ impl Component for UmapView {
     /// x
     fn create(_ctx: &Context<Self>) -> Self {
 
-        //ctx.link().send_message(MsgUMAP::GetCoord);
-        //ctx.link().send_message(MsgUMAP::GetColoring);
-
         let mut color_dict: HashMap<String, Vec<String>> = HashMap::new();
 
         color_dict.insert(
             "default".into(), 
             parse_palette(include_str!("./palette.csv"))
         );
-
-        // let colorblock = build_colorblock(&list_colors);
-
     
         Self {
             node_ref: NodeRef::default(),
@@ -214,16 +199,12 @@ impl Component for UmapView {
             last_pos: (0.0,0.0),
             last_cell: None,
             umap_index: UmapPointIndex::new(), //tricky... adapt to umap size??
-            //coloring: UmapMetadata::new(),
             current_coloring: String::new(),
             current_tool: CurrentTool::Select,
             camera: Camera2D::new(),
             current_selection: None,
 
             color_dict: color_dict,
-
-            // list_colors: list_colors,
-            // colorblock: colorblock,
 
             last_umap: AsyncData::NotLoaded,
         }
@@ -304,13 +285,6 @@ impl Component for UmapView {
             MsgUMAP::MouseClick => {
                 false
             },
-
-            MsgUMAP::SetCurrentColoring(c) => {
-                //log::debug!("xxx {}",c);
-                self.current_coloring=c;
-                true                
-            },
-
 
             MsgUMAP::SelectCurrentTool(t) => {
 
@@ -412,9 +386,6 @@ impl Component for UmapView {
         log::debug!("{:?}", umap);
         log::debug!("############################");
  */
-        
-
-
 
 
         let mousemoved = ctx.link().callback(move |e: MouseEvent | { 
@@ -427,13 +398,6 @@ impl Component for UmapView {
         });
 
 
-
-        let select_factor = ctx.link().callback(move |e: Event | { 
-            let target: Option<EventTarget> = e.target();
-            let input: HtmlSelectElement = target.and_then(|t| t.dyn_into::<HtmlSelectElement>().ok()).expect("wrong type"); 
-            MsgUMAP::SetCurrentColoring(input.value())
-        });
-
         
         let mousewheel = ctx.link().callback(move |e: WheelEvent | { 
             e.prevent_default();
@@ -445,59 +409,6 @@ impl Component for UmapView {
             MsgUMAP::MouseClick
         });
 
-        /*
-        //List factors
-        let mut list_factors = Vec::new();
-        for i in self.coloring.colorings.keys() {
-            list_factors.push(html! {
-                <option value={i.clone()} selected={self.current_coloring == *i}> 
-                    { i.clone() }
-                </option>
-            });
-        }
- */
-        /*
-        
-        let list_colors = self.get_current_palette();
-
-        //List colors for this factor
-        let mut list_levels = Vec::new();
-        if let Some(coloring) = self.coloring.colorings.get(&self.current_coloring) {
-
-            let max_rows=20;
-            let num_cols = (coloring.list_levels.len() as f32 / (max_rows as f32)).ceil() as usize; //is this guaranteed to always work?
-            let num_rows = max_rows.min(coloring.list_levels.len());
-
-
-            for i in 0..num_rows {
-                let mut list_cols = Vec::new();
-                for j in 0..num_cols {
-                    let cur_level = j*max_rows + i;
-                    if cur_level < coloring.list_levels.len() {
-                        let scolor = format!("background-color:{}; min-width:18px;",list_colors.get(cur_level).expect("failed to get a color"));
-                        let level_name = coloring.list_levels.get(cur_level).expect("failed to get a level");
-
-                        list_cols.push(html! {
-                            <td style={scolor}>
-                                { " " }                       
-                            </td> 
-                        });
-                        list_cols.push(html! {
-                            <td style="font-size: 12px;">
-                                { level_name.clone() }
-                            </td>
-                        });
-                    }
-                }
-                list_levels.push(html! {
-                    <tr>
-                        {list_cols}
-                    </tr>
-                });                
-            }
-
-        }
-         */
         
         let click_select = ctx.link().callback(move |_e: MouseEvent | { 
             MsgUMAP::SelectCurrentTool(CurrentTool::Select)
@@ -571,12 +482,6 @@ impl Component for UmapView {
                 //Overlay SVG
                 <div style="position: absolute; left:0; top:0; display: flex; pointer-events: none; ">  
                     <svg style="width: 800px; height: 500px; pointer-events: none;"> // note: WxH must cover canvas!!  
-                        /*
-                        //name of cell
-                        <text x=10 y=15 style="font-family: 'Roboto', sans-serif;">
-                            { format!("{}", if let Some(c) = &self.last_cell {c.clone()} else {String::new()}) }
-                        </text>
-                        */
                         { html_select }
                     </svg>
                 </div>
@@ -595,26 +500,6 @@ impl Component for UmapView {
                 <div style={tool_style(700, self.current_tool==CurrentTool::ZoomAll)} onclick={click_zoomall}>
                     <svg data-icon="zoom-in" height="16" width="16" xmlns="http://www.w3.org/2000/svg"><path style="fill:none;stroke:#000;stroke-width:2.01074px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" d="M14.733 8.764v5.973H9.586m-8.29-5.973v5.973h5.146m8.29-7.5V1.264H9.587m-8.29 5.973V1.264h5.146"/></svg>
                 </div>
-                
-/*
-
-                <div style="position: absolute; left:820px; top:0; width: 30%;"> //display: flex; 
-                    <div>
-                        <p style="font-family: 'Roboto', sans-serif; color: black">
-                            {"Color by: "}
-                        </p>
-                        <select onchange={select_factor}>
-                            { list_factors }
-                        </select>                    
-                    </div>
-                    <div>
-                        <table>
-                            { list_levels }
-                        </table>
-                    </div>
-                </div>
- */
-
 
             </div>
         }
