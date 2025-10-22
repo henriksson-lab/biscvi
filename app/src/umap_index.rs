@@ -1,20 +1,13 @@
-//use my_web_app::UmapData;
-
-
-/// This data structure takes quite a while to build... 
-/// do it asynch, after rendering, or provide a simpler algo?
-
 use std::collections::HashMap;
 
-use crate::component_umap::UmapData;
-
+use crate::component_umap_main::UmapData;
 
 type Sector = (i32,i32);
-
 type UmapPoint = (f32,f32,usize);
 
 
-
+////////////////////////////////////////////////////////////
+/// 
 fn dist2(x1:f32,y1:f32,   x2:f32,y2:f32) -> f32 {
         let dx = x1 - x2;
         let dy = y1 - y2;
@@ -24,12 +17,16 @@ fn dist2(x1:f32,y1:f32,   x2:f32,y2:f32) -> f32 {
 
 
 
+////////////////////////////////////////////////////////////
+/// 
 pub struct UmapPointIndex {
     sectors: HashMap<Sector, Vec<UmapPoint>>,
     max_dist: f32
 }
 impl UmapPointIndex {
 
+    ////////////////////////////////////////////////////////////
+    /// 
     pub fn new() -> UmapPointIndex {
         UmapPointIndex {
             sectors: HashMap::new(),
@@ -37,11 +34,15 @@ impl UmapPointIndex {
         }
     }
 
+    ////////////////////////////////////////////////////////////
+    /// 
     pub fn clear(&mut self) {
         self.sectors.clear();
 
     }
 
+    ////////////////////////////////////////////////////////////
+    /// 
     pub fn get_sector_id(&self, x: f32, y: f32) -> Sector {
         (
             ((x as f32)/self.max_dist) as i32,
@@ -49,6 +50,8 @@ impl UmapPointIndex {
         )
     }
 
+    ////////////////////////////////////////////////////////////
+    /// 
     pub fn build_point_index(&mut self, umap: &UmapData, max_dist: f32) {
         self.clear();
         self.max_dist = max_dist;
@@ -79,6 +82,8 @@ impl UmapPointIndex {
 
 
 
+    ////////////////////////////////////////////////////////////
+    /// 
     pub fn get_closest_point(&self, x:f32, y:f32) -> Option<usize> {
 
         //Scan all sectors around mouse for candidate points

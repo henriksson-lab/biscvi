@@ -21,6 +21,14 @@ use crate::umap_index::UmapPointIndex;
 // see https://github.com/yewstack/yew/blob/master/examples/webgl/src/main.rs
 
 
+////////////////////////////////////////////////////////////
+/// Coloring of the reduction
+#[derive(PartialEq, Clone)]
+pub enum UmapColoring {
+    None,
+    ByMeta(String),
+    //ByFeature(usize), // todo
+}
 
 
 ////////////////////////////////////////////////////////////
@@ -138,6 +146,9 @@ pub struct Props {
     pub umap: AsyncData<UmapData>, 
 //    pub on_cell_hovered: Callback<Option<String>>,
 //    pub on_cell_clicked: Callback<Vec<String>>,
+
+    pub color_umap_by: UmapColoring,
+
 }
 
 

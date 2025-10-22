@@ -1,14 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
-use crate::component_umap::UmapData;
+use std::{collections::{BTreeMap}, sync::Arc};
+use crate::component_umap_main::UmapData;
 
 
 pub struct BiscviData {
 
-    //pub current_datadesc: Option<DatasetDescResponse>,
-//   SetDatasetDesc(DatasetDescResponse),
-//    SetReduction(ReductionResponse)
-
-    pub reductions: HashMap<String, AsyncData<UmapData>>  //converted from ReductionResponse
+    pub reductions: BTreeMap<String, AsyncData<UmapData>>  //converted from ReductionResponse
 
 }
 impl BiscviData {
@@ -17,7 +13,7 @@ impl BiscviData {
     pub fn new() -> BiscviData {
         BiscviData {
             //current_datadesc: None
-            reductions: HashMap::new()
+            reductions: BTreeMap::new()
         }
     }
 
@@ -127,35 +123,3 @@ impl<T> PartialEq for AsyncData<T> {
         */
     }
 }
-
-/*
-
-pub struct EqualPointer<T> {
-    data: T
-}
-impl<T> PartialEq for EqualPointer<T> {
-    fn eq(&self, other: &Self) -> bool {
-        let ptr_this: *const T = &self.data;
-        let ptr_other: *const T = &other.data;
-        ptr_this == ptr_other
-    }
-}
-
- */
-
-
-
-
-/*
-// not possible to construct below
-
-fn get_async_hashmap<K,V>(map: HashMap<K,AsyncData<V>>, key: &K) -> &AsyncData<V> where K: std::cmp::Eq + std::hash::Hash {
-    let out = map.get(key);
-    if let Some(out) = out {
-        out
-    } else {
-        &AsyncData::Missing
-    }
-}
-    */
-

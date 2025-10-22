@@ -17,9 +17,9 @@
   left: 0;
   width: 20%;
   height: 95%;
-  background-color:  #CCCCCC; 
+  //background-color:  #CCCCCC; 
   border-style: groove;
-  border-width: 1px;
+  border-width: 2px;
   overflow-y: scroll;
 
 }
@@ -28,7 +28,7 @@
 .biscvi-dimred-maindiv {
   position: fixed;
   top: 5%;
-  left: 20%;
+  left: 20.2%;
   width: 50%;
   height: 95%;
   background-color:  #FFFFFF; 
@@ -40,7 +40,9 @@
   right: 0;
   width: 20%;
   height: 95%;
-  background-color:  #CCCCCC; 
+  border-style: groove;
+  border-width: 2px;
+  //background-color:  #CCCCCC; 
 }
 
 

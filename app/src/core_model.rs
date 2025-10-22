@@ -15,7 +15,8 @@ use bytes::Buf;
 
 use crate::appstate::AsyncData;
 use crate::appstate::BiscviData;
-use crate::component_umap::from_response_to_umap_data;
+use crate::component_umap_main::from_response_to_umap_data;
+use crate::component_umap_main::UmapColoring;
 
 ////////////////////////////////////////////////////////////
 /// Which page is currently being shown?
@@ -39,9 +40,13 @@ pub enum Msg {
     SetDatasetDesc(DatasetDescResponse),
 
     GetReduction(String),
-    SetReduction(String, ReductionResponse)
+    SetReduction(String, ReductionResponse),
+
+    ColorByMeta(String),
+
 
 }
+
 
 
 
@@ -50,8 +55,9 @@ pub enum Msg {
 pub struct Model {
     pub current_page: CurrentPage,
     pub current_reduction: Option<String>,              //should be state of a page; move later
-    pub current_datadesc: Option<DatasetDescResponse>,  //For now, makes sense to keep this here, as it is static. but risks becoming really large
+    pub current_datadesc: AsyncData<DatasetDescResponse>,  //For now, makes sense to keep this here, as it is static. but risks becoming really large
     pub current_data: Arc<Mutex<BiscviData>>,           //Has interior mutability. Yew will not be able to sense updates! Need to signal in other ways
+    pub color_umap_by: UmapColoring, //// currently assumed
 }
 impl Component for Model {
 
@@ -73,8 +79,9 @@ impl Component for Model {
         Self {
             current_page: CurrentPage::Home,
             current_reduction: None,
-            current_datadesc: None,
+            current_datadesc: AsyncData::NotLoaded,
             current_data: current_data,
+            color_umap_by: UmapColoring::None,
         }
     }
 
@@ -124,7 +131,7 @@ impl Component for Model {
             // Message: Set reduction data, sent from server
             Msg::SetDatasetDesc(res) => {
                 //log::debug!("got desc {:?}",res);
-                self.current_datadesc = Some(res);
+                self.current_datadesc = AsyncData::new(res);
                 true
             },
 
@@ -183,6 +190,20 @@ impl Component for Model {
 
                 true
             },
+
+
+            ////////////////////////////////////////////////////////////
+            // Message: Set reduction data, sent from server
+            Msg::ColorByMeta(name) => {
+
+                log::debug!("set coloring to {} ",name);
+
+                self.color_umap_by = UmapColoring::ByMeta(name);
+                // TODO send request to load data. could also have such request set a color once loaded to avoid redraw?
+
+                true
+            }
+
 
         }
     }

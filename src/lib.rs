@@ -104,5 +104,15 @@ pub struct DatasetDescResponse {
     pub reductions: HashMap<String, CountFileRed>,    
     pub meta: HashMap<String, CountFileMetaColumnDesc>,
 }
+impl DatasetDescResponse {
 
+    pub fn new() -> DatasetDescResponse {
+        DatasetDescResponse {
+            matrices: HashMap::new(),
+            reductions: HashMap::new(),
+            meta: HashMap::new(),
+        }
+    }
+
+}
 

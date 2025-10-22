@@ -1,4 +1,4 @@
-use crate::component_umap::UmapData;
+use crate::component_umap_main::UmapData;
 
 
 ////////////////////////////////////////////////////////////
