@@ -6,6 +6,7 @@ pub mod component_umap_main;
 pub mod component_umap_left;
 pub mod umap_index;
 pub mod appstate;
+pub mod resize;
 
 use crate::core_model::*;
 

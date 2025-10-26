@@ -1,22 +1,30 @@
-use std::{collections::{BTreeMap}, sync::Arc};
+use std::{collections::{BTreeMap, HashMap}, sync::Arc};
+use my_web_app::CountFileMetaColumnData;
+
 use crate::component_umap_main::UmapData;
+
 
 
 pub struct BiscviData {
 
-    pub reductions: BTreeMap<String, AsyncData<UmapData>>  //converted from ReductionResponse
+    pub reductions: BTreeMap<String, AsyncData<UmapData>>,  //converted from ReductionResponse
+    pub metadatas: HashMap<String, AsyncData<CountFileMetaColumnData>>,  //type ???
 
 }
 impl BiscviData {
 
 
+    ////////////////////////////////////////////////////////////
+    /// x
     pub fn new() -> BiscviData {
         BiscviData {
-            //current_datadesc: None
-            reductions: BTreeMap::new()
+            reductions: BTreeMap::new(),
+            metadatas: HashMap::new(),
         }
     }
 
+    ////////////////////////////////////////////////////////////
+    /// x
     pub fn get_reduction(&self, k: &String) -> AsyncData<UmapData> {
         let v = self.reductions.get(k);
         if let Some(v) = v {
@@ -26,9 +34,23 @@ impl BiscviData {
         }
     }
 
+    ////////////////////////////////////////////////////////////
+    /// x
+    pub fn get_metadata(&self, k: &String) -> AsyncData<CountFileMetaColumnData> {
+        let v = self.metadatas.get(k);
+        if let Some(v) = v {
+            v.clone()
+        } else {
+            AsyncData::NotLoaded
+        }
+    }
+
+
 }
 
 
+////////////////////////////////////////////////////////////
+/// x
 #[derive(Debug)]
 pub enum AsyncData<T> {
     NotLoaded,

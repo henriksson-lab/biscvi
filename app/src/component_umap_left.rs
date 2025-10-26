@@ -20,7 +20,6 @@ use crate::appstate::AsyncData;
 pub enum MsgMetadata {
     SetColorBy(String),
     ToggleExpand(String)
-
 }
 
 
@@ -55,8 +54,7 @@ impl Component for MetadataView {
 
     ////////////////////////////////////////////////////////////
     /// x
-    fn create(_ctx: &Context<Self>) -> Self {
-    
+    fn create(_ctx: &Context<Self>) -> Self {    
         Self {
             node_ref: NodeRef::default(),
             expanded_meta: HashSet::new(),

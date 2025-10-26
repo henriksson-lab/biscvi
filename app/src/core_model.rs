@@ -5,6 +5,8 @@ use std::sync::Mutex;
 
 use my_web_app::DatasetDescRequest;
 use my_web_app::DatasetDescResponse;
+use my_web_app::MetadataColumnRequest;
+use my_web_app::MetadataColumnResponse;
 use my_web_app::ReductionRequest;
 use my_web_app::ReductionResponse;
 
@@ -17,6 +19,9 @@ use crate::appstate::AsyncData;
 use crate::appstate::BiscviData;
 use crate::component_umap_main::from_response_to_umap_data;
 use crate::component_umap_main::UmapColoring;
+use crate::resize::ComponentSize;
+use crate::resize::ComponentSizeObserver;
+
 
 ////////////////////////////////////////////////////////////
 /// Which page is currently being shown?
@@ -42,8 +47,12 @@ pub enum Msg {
     GetReduction(String),
     SetReduction(String, ReductionResponse),
 
-    ColorByMeta(String),
+    RequestSetColorByMeta(String),
+    SetColorByMeta(String, Option<MetadataColumnResponse>),
 
+    DataChanged, //Just update using "true"
+
+    WindowResize(ComponentSize),
 
 }
 
@@ -58,6 +67,8 @@ pub struct Model {
     pub current_datadesc: AsyncData<DatasetDescResponse>,  //For now, makes sense to keep this here, as it is static. but risks becoming really large
     pub current_data: Arc<Mutex<BiscviData>>,           //Has interior mutability. Yew will not be able to sense updates! Need to signal in other ways
     pub color_umap_by: UmapColoring, //// currently assumed
+
+    pub last_component_size: ComponentSize
 }
 impl Component for Model {
 
@@ -82,6 +93,7 @@ impl Component for Model {
             current_datadesc: AsyncData::NotLoaded,
             current_data: current_data,
             color_umap_by: UmapColoring::None,
+            last_component_size: ComponentSize { width: 100.0, height: 100.0 },
         }
     }
 
@@ -92,6 +104,13 @@ impl Component for Model {
     /// Handle an update message
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
+
+
+            ////////////////////////////////////////////////////////////
+            // Message: Data changed, redraw
+            Msg::DataChanged => {
+                true
+            },
 
             ////////////////////////////////////////////////////////////
             // Message: Open a given page
@@ -194,15 +213,67 @@ impl Component for Model {
 
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
-            Msg::ColorByMeta(name) => {
+            Msg::RequestSetColorByMeta(name) => {   //name??
 
-                log::debug!("set coloring to {} ",name);
+                log::debug!("RequestSetColorByMeta {} ",name);
 
-                self.color_umap_by = UmapColoring::ByMeta(name);
-                // TODO send request to load data. could also have such request set a color once loaded to avoid redraw?
+                let has_data = self.current_data.lock().unwrap().metadatas.contains_key(&name);
 
+                //For now, point to new data
+                ctx.link().send_message(Msg::SetColorByMeta(name.clone(), None));
+
+                //If needed, request data
+                if !has_data {
+
+                    let query: MetadataColumnRequest = MetadataColumnRequest {
+                        column_name: name.clone(),
+                    };
+                    let query_json = serde_json::to_vec(&query).expect("Could not convert to json");
+
+                    let name=name.clone();
+                    let get_data = async move {
+                        let client = reqwest::Client::new();
+                        let res = client.post(format!("{}/get_metacolumn",get_host_url())) 
+                            .header("Content-Type", "application/json")
+                            .body(query_json) 
+                            .send()
+                            .await
+                            .expect("Failed to send request")
+                            .bytes()
+                            .await
+                            .expect("Could not get binary data");
+                        //log::debug!("sent reduction request {:?}",res);
+                        let res: MetadataColumnResponse  = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
+
+                        Msg::SetColorByMeta(name, Some(res))
+                    };
+                    ctx.link().send_future(get_data);
+                }
+                false
+            },
+
+
+            ////////////////////////////////////////////////////////////
+            // Message: Set reduction data, sent from server
+            Msg::SetColorByMeta(name, res) => {  
+
+                //Update data if needed
+                if let Some(res) = res {
+                    let mut current_data = self.current_data.lock().unwrap();
+                    current_data.metadatas.insert(name.clone(), AsyncData::new(res.data));
+                }
+                self.color_umap_by = UmapColoring::ByMeta(name);  //TODO: could compare by pointer to force updates
+                true
+            },
+
+
+            ////////////////////////////////////////////////////////////
+            // Message: Window is resized
+            Msg::WindowResize(size) => {  
+                self.last_component_size = size;
                 true
             }
+
 
 
         }
@@ -229,9 +300,17 @@ impl Component for Model {
             }
         }
 
+        //let window = window().expect("no window");
+        // window.addEventListener('resize', resizeCanvas, false);
+        // https://yew.rs/docs/next/concepts/html/events
+
+        let onsize = ctx.link().callback(|size: ComponentSize| {
+            Msg::WindowResize(size)
+        });
 
         html! {
-            <div>
+            <div style="position: relative;"> // added style
+                <ComponentSizeObserver onsize={onsize} />
                 <div class="biscvi-topdiv">
                     <div style="float: left; padding: 10px; font-size: 30px; font-family: 'Roboto', sans-serif; font-weight: 900;">
                         {"Biscvi"}
@@ -249,12 +328,6 @@ impl Component for Model {
             </div>
         }
     }
-
-
-
-
-
-
 
 }
 
@@ -285,3 +358,5 @@ pub fn get_host_url() -> String {
 }
 
 // https://yew.rs/docs/next/advanced-topics/struct-components/hoc
+
+
