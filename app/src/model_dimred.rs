@@ -4,21 +4,10 @@ use yew::{prelude::*};
 
 
 use crate::component_umap_left::MetadataView;
+use crate::component_umap_right::FeatureView;
 
 impl Model {
 
-
-
-    ////////////////////////////////////////////////////////////
-    /// x
-    pub fn view_dimred_rightside(&self, _ctx: &Context<Self>) -> Html {
-        html! {
-            <div class="biscvi-dimred-rightdiv">
-                {"Genes:"}
-                <input type="text"/>
-            </div>
-        }
-    }
 
 
     ////////////////////////////////////////////////////////////
@@ -70,8 +59,14 @@ impl Model {
                         last_component_size={self.last_component_size.clone()}
                     />
                 </div>
-                <MetadataView current_datadesc={self.current_datadesc.clone()} on_colorbymeta={on_colorbymeta}/>
-                { self.view_dimred_rightside(ctx) }
+                <MetadataView 
+                    current_datadesc={self.current_datadesc.clone()} 
+                    on_colorbymeta={on_colorbymeta.clone()}
+                />
+                <FeatureView
+                    current_datadesc={self.current_datadesc.clone()}
+                    on_colorbymeta={on_colorbymeta}  //expand, not just meta?
+                />
             </div>
         }
     }

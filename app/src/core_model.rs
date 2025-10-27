@@ -83,8 +83,6 @@ impl Component for Model {
         ctx.link().send_message(Msg::GetReduction("kraken_umap".into()));
 //        ctx.link().send_message(MsgUMAP::GetReduction());
 
-//        log::debug!("fooo");
-
         let current_data = Arc::new(Mutex::new(BiscviData::new()));
 
         Self {
@@ -256,6 +254,8 @@ impl Component for Model {
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
             Msg::SetColorByMeta(name, res) => {  
+
+                log::debug!("RequestSetColorByMeta {} {:?}",name, res);
 
                 //Update data if needed
                 if let Some(res) = res {

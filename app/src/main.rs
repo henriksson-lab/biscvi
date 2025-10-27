@@ -4,6 +4,7 @@ pub mod model_files;
 pub mod camera;
 pub mod component_umap_main;
 pub mod component_umap_left;
+pub mod component_umap_right;
 pub mod umap_index;
 pub mod appstate;
 pub mod resize;

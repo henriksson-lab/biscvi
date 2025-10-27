@@ -165,6 +165,7 @@ pub struct Props {
 
 }
 
+type Color3f = (f32,f32,f32);
 
 ////////////////////////////////////////////////////////////
 /// 
@@ -183,13 +184,14 @@ pub struct UmapView {
 
     current_selection: Option<Rectangle2D>,
 
-    color_dict: HashMap<String, Vec<String>>,
+    //color_dict: HashMap<String, Vec<Color3f>>,
 
     last_umap: AsyncData<UmapData>,
 }
 
+/*
 impl UmapView {
-    fn get_current_palette(&self) -> &Vec<String> {
+    fn get_current_palette(&self) -> &Vec<Color3f> {
         self.color_dict.get(
             &self.current_coloring
         ).or(       
@@ -199,6 +201,7 @@ impl UmapView {
         )
     } 
 }
+ */
 
 
 ////////////////////////////////////////////////////////////
@@ -211,12 +214,6 @@ impl Component for UmapView {
     /// x
     fn create(_ctx: &Context<Self>) -> Self {
 
-        let mut color_dict: HashMap<String, Vec<String>> = HashMap::new();
-
-        color_dict.insert(
-            "default".into(), 
-            parse_palette(include_str!("./palette.csv"))
-        );
     
         Self {
             node_ref: NodeRef::default(),
@@ -229,7 +226,7 @@ impl Component for UmapView {
             camera: Camera2D::new(),
             current_selection: None,
 
-            color_dict: color_dict,
+            //color_dict: color_dict,
 
             last_umap: AsyncData::NotLoaded,
         }
@@ -568,11 +565,12 @@ impl Component for UmapView {
             // there would be multiple loops running. That doesn't *really* matter here because
             // there's no props update and no SSR is taking place, but it is something to keep in
             // consideration
+
+            // TODO should we only render if data changed?
             /*
             if !first_render {
                 return;
             }
-            //////// why is this needed?
             */
             
 
@@ -581,9 +579,6 @@ impl Component for UmapView {
             // for making GL calls.
             let canvas = self.node_ref.cast::<HtmlCanvasElement>().unwrap();
 
-            //canvas.set_width(800);
-            //canvas.set_height(500); ///////////////////////////////////////////////////////////////////////////// TODO: adapt somehow?
-
             let gl: GL = canvas
                 .get_context("webgl")
                 .unwrap()
@@ -591,145 +586,92 @@ impl Component for UmapView {
                 .dyn_into()
                 .unwrap();
 
-            
-            // This should log only once -- not once per frame
-
-            let vert_code = include_str!("./umap.vert");
+            let vert_code = String::from(include_str!("./umap.vert"));
             let frag_code = include_str!("./umap.frag");
-
-            let list_colors = self.get_current_palette();
-            let colorblock = build_colorblock(&list_colors);
-
-            let vert_code = vert_code.replace("//COLORBLOCK//", &colorblock);
-            //log::debug!("{}", vert_code);
 
             //Get position data
             let num_points = umap.num_point;
             let vertices = &umap.data;    
-            let mut vertices_color:Vec<f32> = Vec::new();
+            let mut vec_vertex:Vec<f32> = Vec::new();
 
+            let vec_vertex_size = 6;
+            vec_vertex.reserve(num_points*6);  //Size of vec3+vec3
+            for i in 0..num_points {
+                vec_vertex.push(*vertices.get(i*2+0).unwrap());
+                vec_vertex.push(*vertices.get(i*2+1).unwrap());
+                vec_vertex.push(0.0); // only used for 3d reductions
 
-            let mut vec_colors:Vec<f32> = Vec::new();
+                vec_vertex.push(0.0); ///////////////////////////////////////////////// color index. remove, put in separate buffer
+                vec_vertex.push(0.0); ///////////////////////////////////////////////// color index. remove, put in separate buffer    filler for now
+                vec_vertex.push(0.0); ///////////////////////////////////////////////// color index. remove, put in separate buffer
 
+            }
 
+            //Get color data
             let color_umap_by = &ctx.props().color_umap_by;
             if let UmapColoringWithData::ByMeta(_name, color_data) = color_umap_by {
-
                 if let AsyncData::Loaded(color_data) = color_data {
-
                     match color_data.as_ref() {
-                        CountFileMetaColumnData::Categorical(vec_data, _vec_cats) => {
-                            vec_colors.reserve(vec_data.len());
+                        CountFileMetaColumnData::Categorical(vec_data, vec_cats) => {
+                            //log::debug!("Making colors for category");
+                            
+                            //let palette = self.color_dict.get("default").unwrap();
+                            let palette = get_palette_for_cats(vec_cats.len());
 
-                            //let num_points = vec_data.len();
-                            for p in vec_data {
-//                            for i in 0..num_points {
-                                //vertices_color.push(*vertices.get(i*2+0).unwrap());
-                                //vertices_color.push(*vertices.get(i*2+1).unwrap());
+                            for (i,p) in vec_data.iter().enumerate() {
+                                let col = palette.get((*p as usize) % palette.len()).unwrap();
+                                vec_vertex[vec_vertex_size*i + 3] = col.0;
+                                vec_vertex[vec_vertex_size*i + 4] = col.1;
+                                vec_vertex[vec_vertex_size*i + 5] = col.2;
 
-                                //let curcol = vec_cats.get(p).expect("Value outside category range while coloring");
-
-                                let r = *p as f32;
-
-                                //TODO get from category
-
-                                //RGB
-                                vec_colors.push(r);
-                                vec_colors.push(r);
-                                vec_colors.push(r);
                             }
 
                         },
                         CountFileMetaColumnData::Numeric(vec_data) => {
 
-                            //TODO normalize color range; should only need to do this once during loading
-                            
+                            //Normalize color range. TODO should only need to do this once during loading
+                            let mut max_val = 0.0;
                             for p in vec_data {
-                                let r = *p as f32;
+                                if *p > max_val {
+                                    max_val = *p;
+                                }
+                            }
 
+                            for (i,p) in vec_data.into_iter().enumerate() {
                                 //RGB
-                                vec_colors.push(r);
-                                vec_colors.push(r);
-                                vec_colors.push(r);
+                                vec_vertex[vec_vertex_size*i + 3] = p/max_val;
+                                vec_vertex[vec_vertex_size*i + 4] = 0.0;
+                                vec_vertex[vec_vertex_size*i + 5] = 0.0;
                             }
                         }
                     }
-
-//                    if let CountFileMetaColumnData::Categorical(ref vec_data, ref vec_cats) = (*color_data).as_ref() {
-//                    let x = color_data.x;
-//                    }
                 }
-
-
-            }
-
-
-
-
-
-
-            //Get color data  .. same length??
-            /*
-            let coloring = self.coloring.colorings.get(&self.current_coloring);
-            if let Some(coloring) = coloring {
-                //let div_color = (coloring.list_levels.len()) as f32;  //+1 needed as 0=1 in HSV  1+ 
-                
-                //log::debug!("{:?}", coloring);
-
-                vertices_color.reserve(num_points*3);
-                for i in 0..num_points {
-                    vertices_color.push(*vertices.get(i*2+0).unwrap());
-                    vertices_color.push(*vertices.get(i*2+1).unwrap());
-
-                    let color_index = coloring.values.get(i).expect("Color array does not match size"); //or: just map to 0,1 etc, if not hue
-                    //let hue=(*color_index as f32)/div_color;
-                    //log::debug!("hue {}", hue);
-                    //vertices_color.push(hue);
-                    vertices_color.push(*color_index as f32);
-
-
-//                    log::debug!("got i {}", *color_index);
-                }
-
-                //log::debug!("provided colors! num point {} {}", num_points, coloring.list_levels.len());
-
             } else {
-                //log::debug!("coloring missing");
- */
-            
-            vertices_color.reserve(num_points*3);
-            for i in 0..num_points {
-                vertices_color.push(*vertices.get(i*2+0).unwrap());
-                vertices_color.push(*vertices.get(i*2+1).unwrap());
-                vertices_color.push(0.0); ///////////////////////////////////////////////// color index. remove, put in separate buffer
+                // Put in an empty color (default is black now)
+                /*                
+                for i in 0..num_points {
+                    let r = (i as f32)/(num_points as f32);
+                    vec_vertex[vec_vertex_size*i + 3] = r;
+                    vec_vertex[vec_vertex_size*i + 4] = 0.0;
+                    vec_vertex[vec_vertex_size*i + 5] = 0.0;
+                }               
+                 */
             }
-
-            // regl: colorBuffer
-            // https://regl-project.github.io
-            // gl.bufferData(buffer.type, data, usage)
-            // https://github.com/regl-project/regl/blob/main/lib/buffer.js
-
-            // make a yew-like equivalent to REGL?
-            // https://stackoverflow.com/questions/8281653/how-to-choose-between-gl-stream-draw-or-gl-dynamic-draw
-            // https://registry.khronos.org/OpenGL-Refpages/gl4/html/glBindBuffer.xhtml   GL_UNIFORM_BUFFER
-            // https://community.khronos.org/t/rebuffering-a-color-array-object/66254    GL_COLOR_ARRAY exists
-//            };
-
 
             //Connect vertex array to GL
             let vertex_buffer = gl.create_buffer().unwrap();
-            let verts = js_sys::Float32Array::from(vertices_color.as_slice());
+            let js_vertex = js_sys::Float32Array::from(vec_vertex.as_slice());
             //let verts = js_sys::Int32Array::from(vertices_int.as_slice());
             gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
-            gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &verts, GL::STATIC_DRAW);
+            gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &js_vertex, GL::STATIC_DRAW);
 
             //Compile vertex shader
             let vert_shader = gl.create_shader(GL::VERTEX_SHADER).unwrap();
             gl.shader_source(&vert_shader, vert_code.as_str());
             gl.compile_shader(&vert_shader);
 
-            /*
-            let msg= gl.get_shader_info_log(&vert_shader);
+            
+            /*let msg= gl.get_shader_info_log(&vert_shader);
             if let Some(msg)=msg {
                 log::debug!("error {}", msg);
             }*/
@@ -746,11 +688,22 @@ impl Component for UmapView {
             gl.link_program(&shader_program);
             gl.use_program(Some(&shader_program));
 
-            // Attach the position vector as an attribute for the GL context.
-            let position = gl.get_attrib_location(&shader_program, "a_position") as u32;
-            gl.vertex_attrib_pointer_with_i32(position, 3, GL::FLOAT, false, 0, 0);  // size 2!! not 3. so 2d coord
-            gl.enable_vertex_attrib_array(position);
+            //Size of a float in bytes
+            let sizeof_float = 4;
 
+            //Attach the position vector as an attribute for the GL context.
+            let a_position = gl.get_attrib_location(&shader_program, "a_position") as u32;
+            //log::debug!("a_position {}",a_position);
+            gl.enable_vertex_attrib_array(a_position);
+            gl.vertex_attrib_pointer_with_i32(a_position, 3, GL::FLOAT, false, sizeof_float*6, 0);  
+
+            //Attach color vector as an attribute
+            let a_color = gl.get_attrib_location(&shader_program, "a_color") as u32;
+            //log::debug!("a_color {}",a_color);
+            gl.enable_vertex_attrib_array(a_color);
+            gl.vertex_attrib_pointer_with_i32(a_color, 3, GL::FLOAT, false, sizeof_float*6, sizeof_float*3);   //index of out range   ... not big enough for the draw call
+
+            //Attach camera attributes
             let u_camera_x = gl.get_uniform_location(&shader_program, "u_camera_x");
             let u_camera_y = gl.get_uniform_location(&shader_program, "u_camera_y");
             let u_camera_zoom_x = gl.get_uniform_location(&shader_program, "u_camera_zoom_x");
@@ -760,7 +713,6 @@ impl Component for UmapView {
             gl.uniform1f(u_camera_zoom_x.as_ref(), self.camera.zoom_x as f32);
             gl.uniform1f(u_camera_zoom_y.as_ref(), self.camera.zoom_y as f32);
 
-
             //log::debug!("canvas {} {}   {:?}", canvas.width(), canvas.height(), self.camera);
 
             let u_display_w = gl.get_uniform_location(&shader_program, "u_display_w");
@@ -768,10 +720,13 @@ impl Component for UmapView {
             gl.uniform1f(u_display_w.as_ref(), canvas.width() as f32);
             gl.uniform1f(u_display_h.as_ref(), canvas.height() as f32);
 
-            // can we attach one more vector???
-
+            // clear canvas
+            gl.clear_color(1.0, 1.0, 1.0, 1.0);
+            gl.clear(GL::COLOR_BUFFER_BIT);
+            
             // to make round points, need to draw square https://stackoverflow.com/questions/7237086/opengl-es-2-0-equivalent-for-es-1-0-circles-using-gl-point-smooth
             gl.draw_arrays(GL::POINTS, 0, num_points as i32);
+
         }
 
 
@@ -872,55 +827,34 @@ pub fn parse_rgb_int(s: &String) -> (i64, i64, i64) {
 
 ////////////////////////////////////////////////////////////
 /// x
-pub fn parse_rgb_f64(s: &String) -> (f64, f64, f64) {
+pub fn parse_rgb_f64(s: &String) -> (f32, f32, f32) {
     let (r,g,b) = parse_rgb_int(s);
     (
-        r as f64 / 255.0,
-        g as f64 / 255.0,
-        b as f64 / 255.0,
+        r as f32 / 255.0,
+        g as f32 / 255.0,
+        b as f32 / 255.0,
     )
 }
 
 
 ////////////////////////////////////////////////////////////
-/// x
-pub fn parse_palette(csv_colors:&str) -> Vec<String> {
-
+/// Generate palette info
+pub fn parse_palette(csv_colors:&str) -> Vec<(f32,f32,f32)> {
     let mut list_colors = Vec::new();
-
-    //Generate palette info
-    // let csv_colors = include_str!("./palette.csv");
     let palette = Cursor::new(csv_colors);
     let reader = BufReader::new(palette);
     for line in reader.lines() {
         let line=line.unwrap();
-        list_colors.push(line);
-        //#RRGGBB 
+        let rgb_color = parse_rgb_f64(&line);
+        list_colors.push(rgb_color);
     }
-
     list_colors
 }
 
 
-////////////////////////////////////////////////////////////
-/// x
-pub fn build_colorblock(list_colors: &Vec<String>) -> String {
 
-    //let num_colors = list_colors.len();
-    //let div = 1.0f64 / num_colors as f64;
-
-    let mut colorblock = String::new();
-    for (i,c) in list_colors.iter().enumerate() {
-        //let cutoff = i as f64 * div + div/2.0;
-        let rgb_color = parse_rgb_f64(c);
-        let (r,g,b) = rgb_color;
-        colorblock.push_str(format!("if (a_position.z >= {:.2}) color = vec3({}, {}, {});\n", i as f32, r,g,b).as_str());
-    }
-
- 
-    
-    //log::debug!("--- {}", colorblock);
-    colorblock
+pub fn get_palette_for_cats(_num_cats: usize) -> Vec<Color3f> {
+//    let palette = self.color_dict.get("default").unwrap();
+    let pal = parse_palette(include_str!("./palette.csv"));
+    pal
 }
-
-

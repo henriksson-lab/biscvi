@@ -7,6 +7,7 @@ use yew::{html, Callback, Component, Context, Html, MouseEvent, NodeRef};
 use yew::Properties;
 
 use crate::appstate::AsyncData;
+use crate::component_umap_main::get_palette_for_cats;
 
 
 // see https://github.com/yewstack/yew/blob/master/examples/webgl/src/main.rs
@@ -69,12 +70,13 @@ impl Component for MetadataView {
 
     ////////////////////////////////////////////////////////////
     /// Handle an update message
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {            
 
 
             MsgMetadata::SetColorBy(metadata_name) => {
                 self.last_colorby=metadata_name.clone();
+                ctx.props().on_colorbymeta.emit(metadata_name);
                 true
             },
 
@@ -98,14 +100,6 @@ impl Component for MetadataView {
     /// x
     fn view(&self, ctx: &Context<Self>) -> Html {
 
-        /*
-        log::debug!("====================== render umap ");
-        let umap = &ctx.props().umap;
-        log::debug!("{:?}", umap);
-        log::debug!("############################");
- */
-
-
         let mut list_meta_cat:Vec<Html> = Vec::new();
         let mut list_meta_cont:Vec<Html> = Vec::new();
 
@@ -128,7 +122,97 @@ impl Component for MetadataView {
             </svg>
         };
 
+        /*
+        html! {
 
+            <div style="margin: 0px; padding: 0px; user-select: none; width: 245px; display: flex; justify-content: space-between;">
+                <div style="display: flex; align-items: baseline;">
+                    <span class="ignore-capture" style="margin: 0px; height: 18px;">
+                        <label class="bp5-control bp5-checkbox">
+                            <input id="value-toggle-checkbox-assay-10x 3' v3" data-testid="categorical-value-select-assay-10x 3' v3" type="checkbox" checked=""/>
+                            <span class="bp5-control-indicator">
+                            </span>
+                        </label>
+                    </span>
+                    <span class="bp5-popover-target" style="width: 188px; color: black; font-style: normal; display: inline-block; overflow: hidden; line-height: 1.1em; height: 1.1em; vertical-align: middle; margin-right: 16px;">
+                        <label for="value-toggle-checkbox-assay-10x 3' v3" data-testid="categorical-value" tabindex="-1" aria-label="10x 3' v3" aria-expanded="false" class="" style="width: 188px; color: black; font-style: normal; display: inline-block; overflow: hidden; line-height: 1.1em; height: 1.1em; vertical-align: middle; margin-right: 16px;">
+                            <span style="width: 100%; color: black; font-style: normal; display: flex; overflow: hidden; line-height: 1.1em; height: 1.1em; vertical-align: middle; margin-right: 16px; justify-content: flex-start; padding: 0px;">
+                                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1; min-width: 5px;">
+                                    {"10x&nbsp;"}
+                                </span>
+                                <span style="position: relative; overflow: hidden; white-space: nowrap;">
+                                    <span style="color: transparent;">
+                                        {"3' v3"}
+                                    </span>
+                                    <span style="position: absolute; right: 0px; color: black;">
+                                        {"3' v3"}
+                                    </span>
+                                </span>
+                            </span>
+                        </label>
+                    </span>
+                    <div style="display: none;">
+                    </div>
+                </div>
+
+                <span style="flex-shrink: 0;">
+                </span>
+            </div>
+        };
+         */
+        /* 
+
+        let _stuff = html! {
+
+            <div style="padding: 4px 10px 4px 7px; display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 2px; border-radius: 2px;">
+                <div style="margin: 0px; padding: 0px; user-select: none; width: 245px; display: flex; justify-content: space-between;">
+                    <div style="display: flex; align-items: baseline;">
+                        <span class="ignore-capture" style="margin: 0px; height: 18px;">
+                            <label class="bp5-control bp5-checkbox">
+                                <input type="checkbox" checked=false/>
+                                <span class="bp5-control-indicator">
+                                </span>
+                            </label>
+                        </span>
+                        <span style="width: 188px; color: black; font-style: normal; display: inline-block; overflow: hidden; line-height: 1.1em; height: 1.1em; vertical-align: middle; margin-right: 16px;">
+                            <label style="width: 188px; color: black; font-style: normal; display: inline-block; overflow: hidden; line-height: 1.1em; height: 1.1em; vertical-align: middle; margin-right: 16px;">
+                                <span style="width: 100%; color: black; font-style: normal; display: flex; overflow: hidden; line-height: 1.1em; height: 1.1em; vertical-align: middle; margin-right: 16px; justify-content: flex-start; padding: 0px;">
+                                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1; min-width: 5px;">
+                                            {"10x&nbsp;"}
+                                    </span>
+                                    <span style="position: relative; overflow: hidden; white-space: nowrap;">
+                                        <span style="color: transparent;">
+                                            {"3' v3"} //why?
+                                        </span>
+                                        <span style="position: absolute; right: 0px; color: black;">
+                                            {"3' v3"}
+                                        </span>
+                                    </span>
+                                </span>
+                            </label>
+                        </span>
+                        <div style="display: none;">
+                        </div>
+                    </div>
+                <span style="flex-shrink: 0;">
+                </span>
+                </div>
+                <div style="white-space: nowrap;">
+                    <span style="display: inline-block; vertical-align: baseline;">
+                        <span style="color: black; top: 10px;">
+                            {"12345"}
+                        </span>
+                       <span style="vertical-align: baseline;">
+                           <svg display="auto" style="top: 3px; width: 15px; height: 15px; margin-left: 5px; position: relative; background-color: rgb(110, 64, 170);"></svg>
+                        </span>
+                    </span>
+                </div>
+            </div>
+
+        };
+*/
+
+        
         let current_datadesc = ctx.props().current_datadesc.clone();
 
         if let AsyncData::Loaded(current_datadesc) = &current_datadesc {
@@ -138,21 +222,63 @@ impl Component for MetadataView {
                 //////////// Discrete categories
                 if let CountFileMetaColumnDesc::Categorical(categories ) = meta_data {
 
+                    let palette = get_palette_for_cats(categories.len());
+
                     //// List of all levels
                     let mut list_levels = Vec::new();
 
                     if self.expanded_meta.contains(meta_name) {
-                        for lvl in categories {
-                            list_levels.push(
-                                html! { 
-                                    <div style="margin-left: 15px">
-                                        <input type="checkbox" checked=true />
-                                        { lvl.clone() }
-                                        //Could show number of cells here, as in cellxgene
-                                        //hovering should make points bold, as in cellxgene
+                        for (level_i, level_name) in categories.iter().enumerate() {
+
+                            //Show a palette if this category is selected
+                            //TODO extract color
+                            //let r=100;
+                            let col = palette.get(level_i % palette.len()).unwrap();
+
+                            let num_cells = "";
+                            
+                            list_levels.push(                                
+                                html! {
+                                    <div style="padding: 4px 10px 4px 7px; display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 2px; border-radius: 2px;">
+                                        <div style="margin: 0px; padding: 0px; user-select: none; width: 245px; display: flex; justify-content: space-between;">
+                                            <div style="display: flex; align-items: baseline;">
+                                                <span class="ignore-capture" style="margin: 0px; height: 18px;">
+                                                    <label class="bp5-control bp5-checkbox">
+                                                        <input type="checkbox" checked=true/> /////////// hightlight even if not hovering
+                                                        //<span class="bp5-control-indicator">
+                                                        //</span>
+                                                    </label>
+                                                </span>
+                                                <span style="width: 188px; color: black; font-style: normal; display: inline-block; overflow: hidden; line-height: 1.1em; height: 1.1em; vertical-align: middle; margin-right: 16px;">
+                                                    <label style="width: 188px; color: black; font-style: normal; display: inline-block; overflow: hidden; line-height: 1.1em; height: 1.1em; vertical-align: middle; margin-right: 16px;">
+                                                        <span style="width: 100%; color: black; font-style: normal; display: flex; overflow: hidden; line-height: 1.1em; height: 1.1em; vertical-align: middle; margin-right: 16px; justify-content: flex-start; padding: 0px;">
+                                                            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1; min-width: 5px;" class="bisci-label-left">
+                                                                {level_name}
+                                                            </span>
+                                                        </span>
+                                                    </label>
+                                                </span>
+                                                //<div style="display: none;">
+                                                //</div>
+                                            </div>
+                                        <span style="flex-shrink: 0;">
+                                        </span>
+                                        </div>
+                                        <div style="white-space: nowrap;">
+                                            <span style="display: inline-block; vertical-align: baseline;">
+                                                <span style="color: black; top: 10px;" class="bisci-label-left">
+                                                    {format!("{}",num_cells)} 
+                                                </span>
+                                            <span style="vertical-align: baseline;">
+                                                <svg display="auto" style={format!{"top: 3px; width: 15px; height: 15px; margin-left: 5px; position: relative; background-color: rgb({}, {}, {});", col.0*255.0, col.1*255.0, col.2*255.0}}></svg>
+                                                </span>
+                                            </span>
+                                        </div>
                                     </div>
+
                                 }
-                            );
+                            );                                
+
                         }
                     }
 
@@ -162,6 +288,7 @@ impl Component for MetadataView {
                         MsgMetadata::ToggleExpand(meta_name_copy.clone())
                     });
 
+                    //Callback to color by this column
                     let meta_name_copy = meta_name.clone();
                     let cb_color_by = ctx.link().callback(move |_e: MouseEvent | { 
                         MsgMetadata::SetColorBy(meta_name_copy.clone())
@@ -202,8 +329,40 @@ impl Component for MetadataView {
                 //////////// Continuous categories
                 if let CountFileMetaColumnDesc::Numeric() = meta_data {
 
+                    let style_colorbutton = if self.last_colorby == *meta_name {
+                        "background-color:  #FF0000; "
+                    } else {
+                        ""
+                    };
+
+                    //Callback to color by this column
+                    let meta_name_copy = meta_name.clone();
+                    let cb_color_by = ctx.link().callback(move |_e: MouseEvent | { 
+                        MsgMetadata::SetColorBy(meta_name_copy.clone())
+                    });
+
                     //// Option to color by continuous metadata
                     list_meta_cont.push(
+                        html! { 
+                            <div>
+                                <div style="width:100%; display:table;">
+                                    <div style="display:table-cell;">
+                                        <input type="checkbox" checked=true />
+                                        { meta_name.clone() }
+                                        //<span onclick={toggle_expand}>
+                                        //    { arrow_down_svg.clone()}
+                                        //</span>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <button type="button" style={style_colorbutton} onclick={cb_color_by}>
+                                            {colorby_svg.clone()}
+                                        </button>
+                                    </div>
+                                </div> 
+                            </div>
+                        }
+/*
+
                         html! { 
                             <div>
                                 <input type="checkbox" checked=true />
@@ -214,6 +373,8 @@ impl Component for MetadataView {
                                 //// histogram or something here
                             </div> 
                         }
+                         */
+
                     );
 
                 }
@@ -246,9 +407,6 @@ impl Component for MetadataView {
     ////////////////////////////////////////////////////////////
     /// x
     fn rendered(&mut self, _ctx: &Context<Self>, _first_render: bool) {
-
-
-
     }
 }
 
