@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::sync::Mutex;
+
 use std::collections::HashSet;
 
 use my_web_app::DatasetDescResponse;
@@ -9,6 +12,7 @@ use yew::Properties;
 
 use crate::appstate::{AsyncData, PerCellDataSource};
 
+use crate::appstate::BiscviData;
 
 ////////////////////////////////////////////////////////////
 /// Message sent to the event system for updating the page
@@ -29,6 +33,7 @@ pub struct Props {
     pub on_colorbyfeature: Callback<PerCellDataSource>,
 
     pub current_colorby: PerCellDataSource,
+    //pub current_data: Arc<Mutex<BiscviData>>,
 }
 
 
@@ -262,7 +267,7 @@ impl FeatureView {
             </svg>
         };
 
-        let histo_svg = self.make_histogram();
+        let histo_svg = self.make_histogram(ctx, count_name, feature_name);
 
 
         //Callback to color by this column
@@ -340,7 +345,56 @@ impl FeatureView {
 
     ////////////////////////////////////////////////////////////
     /// Render the histogram for one feature
-    fn make_histogram(&self) -> VNode {
+    fn make_histogram(&self, ctx: &Context<Self>, count_name: &String, feature_name: &String) -> VNode {
+
+        //let current_datadesc = ctx.props().current_datadesc;
+
+        /*
+            //Get color data
+            let color_reduction_by = &ctx.props().color_reduction_by;
+            log::debug!("Rendering {:?}",color_reduction_by);
+            if let ReductionColoringWithData::ByMeta(_name, color_data) = color_reduction_by {
+                if let AsyncData::Loaded(color_data) = color_data {
+                    match color_data.as_ref() {
+
+                        ///////// Color by numerical data - plain array
+                        CountFileMetaColumnData::Numeric(vec_data) => {
+
+                            //Normalize color range. TODO should only need to do this once during loading
+                            let (_min_val, max_val) = make_safe_minmax(&vec_data);
+
+                            for (i,p) in vec_data.into_iter().enumerate() {
+                                let base = vec_vertex_size*i;
+                                vec_vertex[base + 3] = p/max_val;
+                                vec_vertex[base + 4] = 0.0;
+                                vec_vertex[base + 5] = 0.0;
+                            }
+                        },
+
+                        ///////// Color by numerical data - sparse array
+                        CountFileMetaColumnData::SparseNumeric(vec_index, vec_data) => {
+
+                            //Normalize color range. TODO should only need to do this once during loading. note, for sparse, min_val should be 0 by definition, more or less
+                            let (min_val, max_val) = make_safe_minmax(&vec_data);
+                            log::debug!("Render value range {} {}",min_val, max_val);
+
+                            for (i,p) in vec_index.iter().zip(vec_data.iter()) {
+                                let i = *i as usize;
+                                let base = vec_vertex_size*i;
+                                vec_vertex[base + 3] = p/max_val;
+                                vec_vertex[base + 4] = 0.0;
+                                vec_vertex[base + 5] = 0.0;
+                            }
+                        },
+                    }
+                }
+            } else {
+                // Missing data
+            }        
+         */
+
+
+
         html! {
             <svg width="100%" height="15" style="display: block;">  // id="histogram_XBP1_svg" 
                 <g class="histogram-container" transform="translate(0,0)">

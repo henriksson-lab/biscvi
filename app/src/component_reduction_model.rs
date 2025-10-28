@@ -66,6 +66,7 @@ impl Model {
                     current_datadesc={self.current_datadesc.clone()}
                     on_colorbyfeature={on_colorbymeta}  //expand, not just meta?
                     current_colorby={self.current_colorby.clone()}
+                    //current_data={self.current_data.clone()}
                 />
             </div>
         }
