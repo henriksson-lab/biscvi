@@ -1,73 +1,66 @@
-
 use std::collections::HashSet;
 
-use geojson::Feature;
-use my_web_app::countfile_struct::CountFileMetaColumnDesc;
 use my_web_app::DatasetDescResponse;
+use wasm_bindgen::JsCast;
+use web_sys::{EventTarget, HtmlInputElement};
 use yew::virtual_dom::VNode;
-use yew::{html, Callback, Component, Context, Html, MouseEvent, NodeRef};
+use yew::{Callback, Component, Context, Html, KeyboardEvent, MouseEvent, NodeRef, html};
 use yew::Properties;
 
-use crate::appstate::AsyncData;
-use crate::component_umap_main::get_palette_for_cats;
-
-
-// see https://github.com/yewstack/yew/blob/master/examples/webgl/src/main.rs
-
-
+use crate::appstate::{AsyncData, PerCellDataSource};
 
 
 ////////////////////////////////////////////////////////////
 /// Message sent to the event system for updating the page
 #[derive(Debug)]
 pub enum MsgFeature {
-//    SetColorBy(String),
+    SetColorBy(PerCellDataSource),
 //    ToggleExpand(String)
+    FeatureSearchChange(String, bool),
+    SetLastCountName(String),
 }
 
 
 ////////////////////////////////////////////////////////////
-/// x
+/// Properties for FeatureView
 #[derive(Properties, PartialEq)]
 pub struct Props {
     pub current_datadesc: AsyncData<DatasetDescResponse>,
-    pub on_colorbymeta: Callback<String>,
+    pub on_colorbyfeature: Callback<PerCellDataSource>,
+
+    pub current_colorby: PerCellDataSource,
 }
 
 
 ////////////////////////////////////////////////////////////
-/// 
-/// Wrap gl in Rc (Arc for multi-threaded) so it can be injected into the render-loop closure.
+/// This component shows a list of features that the main plot can be colored by
 pub struct FeatureView {
     pub node_ref: NodeRef,
 
     pub expanded_meta: HashSet<String>,
     pub selected_meta: HashSet<String>,
 
-    pub last_colorby: String,
+    pub open_features: Vec<PerCellDataSource>,
+
+    pub last_counttype_select: String,
 }
 
-
-
-////////////////////////////////////////////////////////////
-/// x
 impl Component for FeatureView {
     type Message = MsgFeature;
     type Properties = Props;
 
     ////////////////////////////////////////////////////////////
-    /// x
+    /// Create this component
     fn create(_ctx: &Context<Self>) -> Self {    
+        log::debug!("creating right controls");
         Self {
             node_ref: NodeRef::default(),
             expanded_meta: HashSet::new(),
             selected_meta: HashSet::new(),
-            last_colorby: "".into(),
+            open_features: Vec::new(),
+            last_counttype_select: String::new(), /////// TODO: need to grab the value!
         }
     }
-
-
-
 
 
     ////////////////////////////////////////////////////////////
@@ -75,14 +68,48 @@ impl Component for FeatureView {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {            
 
-/*
-            MsgFeature::SetColorBy(Feature_name) => {
-                self.last_colorby=Feature_name.clone();
-                ctx.props().on_colorbymeta.emit(Feature_name);
+            //////// Color by a given feature
+            MsgFeature::SetColorBy(feature_name) => {
+                //self.last_colorby=feature_name.clone();
+                ctx.props().on_colorbyfeature.emit(feature_name);
                 true
             },
+/* 
+            MsgFeature::AddSearchFeature(counts_name, feature_name) => {
+                //let counts_name = "RNA".to_string();
+                let feature_name: PerCellDataSource = PerCellDataSource::Counts(counts_name, feature_name);
+                //self.last_colorby=feature_name.clone();
+                //ctx.props().on_colorbyfeature.emit(feature_name);
+                log::debug!("adding features");
+                self.open_features.push(feature_name);
+                log::debug!("{:?}", self.open_features);
+                true
+            },*/
 
+            //////// Key pressed in search feature input
+            MsgFeature::FeatureSearchChange(value, is_enter) => {
+                let feature_name = PerCellDataSource::Counts(self.last_counttype_select.clone(), value.clone());
+                if is_enter {
+                    //Check that the feature is not already there, or empty
+                    if !self.open_features.contains(&feature_name) && value != "" {
+                        self.open_features.push(feature_name.clone());
+                        ctx.props().on_colorbyfeature.emit(feature_name); // Color by this feature right away
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            },
 
+            //////// Component updated, and a list of count tables is now present. UI has already been updated
+            MsgFeature::SetLastCountName(countname) => {
+                self.last_counttype_select = countname;
+                false
+            }
+
+/*
             MsgFeature::ToggleExpand(Feature_name) => {
                 if self.expanded_meta.contains(&Feature_name) {
                     self.expanded_meta.remove(&Feature_name);
@@ -99,7 +126,7 @@ impl Component for FeatureView {
 
 
     ////////////////////////////////////////////////////////////
-    /// x
+    /// Main rendering function for panel of features
     fn view(&self, ctx: &Context<Self>) -> Html {
 
         let _svg_arrowdown = html! {
@@ -109,28 +136,78 @@ impl Component for FeatureView {
         };
 
 
-        let one_gene = self.make_one_feature(&"XBP1".to_string());
+        log::debug!("open features");
+        log::debug!("{:?}", self.open_features);
 
-
+        //Create controls for all open features
         let mut list_features:Vec<Html> = Vec::new();
-        list_features.push(one_gene);
+        for f in &self.open_features {
+            match f {
+                PerCellDataSource::Counts(count_name, feature_name) => {
+                    let one_gene = self.make_one_feature(ctx, count_name, feature_name);
+                    list_features.push(one_gene);
+                },
+                _ => {
+                    log::error!("PerCellDataSource in feature table {}", f);
+                }
+            }
+        }
 
 
+        //SVG for search icon
         let svg_search = html! {
             <svg data-icon="search" height="16" role="img" viewBox="0 0 16 16" width="16">
                 <path d="M15.55 13.43l-2.67-2.68a6.94 6.94 0 001.11-3.76c0-3.87-3.13-7-7-7s-7 3.13-7 7 3.13 7 7 7c1.39 0 2.68-.42 3.76-1.11l2.68 2.67a1.498 1.498 0 102.12-2.12zm-8.56-1.44c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z" fill-rule="evenodd"></path>
             </svg>
         };
 
+        //Generate SELECT for all count tables
+        let mut list_feature_types = Vec::new();
+        list_feature_types.push("RNA".to_string());
+
+        let mut list_feature_types_html = Vec::new();
+        for t in &list_feature_types {
+            list_feature_types_html.push(html! {
+                <option value={t.clone()}>
+                    {t}
+                </option>
+
+            });
+        }
+
+        //Keep track of currently selected count table. It is not populated at first, so need to grab a value once the data becomes available
+        if self.last_counttype_select=="" && !list_feature_types.is_empty() {
+            let first_entry = list_feature_types.get(0).unwrap();
+            ctx.link().send_message(MsgFeature::SetLastCountName(first_entry.clone()));         
+        }
+
+        //Callback for keypresses on the feature search input
+        let input_onkeyup = ctx.link().callback(move |e: KeyboardEvent | { 
+            let target: Option<EventTarget> = e.target();
+            let input: HtmlInputElement = target.and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).expect("wrong type");
+            let cur_value = input.value();
+
+            e.prevent_default();
+            let is_enter = e.key() == "Enter" || e.key_code() == 13;
+            if is_enter {
+                log::debug!("got input");
+                input.set_value(""); //empty it
+            }
+            MsgFeature::FeatureSearchChange(cur_value, is_enter)
+        });
+
+        //Compose the view
         html! {
             <div class="biscvi-dimred-rightdiv">
                 <div>
-
-                    <div class="bp5-input-group bp5-fill bp5-popover-target bp5-popover-open">
-                        <span aria-hidden="true" tabindex="-1" class="bp5-icon bp5-icon-search">
-                           {svg_search}
+                    <div> //  class="bp5-input-group bp5-fill bp5-popover-target bp5-popover-open"
+                        <select>
+                            {list_feature_types_html}
+                        </select>
+                        <span> //  aria-hidden="true" tabindex="-1" class="bp5-icon bp5-icon-search"
+                            <input type="text" autocomplete="off" placeholder="Search feature" aria-autocomplete="list" value="" onkeyup={input_onkeyup}/> // aria-controls="listbox-7"  class="bp5-input" aria-haspopup="listbox" role="combobox"   ref={input_node_ref} 
+                            {svg_search}
                         </span>
-                        <input type="text" autocomplete="off" placeholder="Quick Gene Search" aria-autocomplete="list" value=""/> // aria-controls="listbox-7"  class="bp5-input" aria-haspopup="listbox" role="combobox" 
                     </div>
 
                 </div>
@@ -139,13 +216,12 @@ impl Component for FeatureView {
                 </div>
             </div>
         }
-
     }
 
 
 
     ////////////////////////////////////////////////////////////
-    /// x
+    /// Called after component has been rendered
     fn rendered(&mut self, _ctx: &Context<Self>, _first_render: bool) {
     }
 
@@ -156,11 +232,11 @@ impl Component for FeatureView {
 impl FeatureView {
 
     ////////////////////////////////////////////////////////////
-    /// x
-    fn make_one_feature(&self, feature_name: &String) -> VNode {
+    /// Render controls for one open feature
+    fn make_one_feature(&self, ctx: &Context<Self>, count_name: &String, feature_name: &String) -> VNode {
+        let combo_feature = PerCellDataSource::Counts(count_name.clone(), feature_name.clone());
 
-
-        let infocircle_svg = html! {
+        let _infocircle_svg = html! {
             <svg width="16" height="16" focusable="false" viewBox="0 0 16 16" fillcontrast="white"> // class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-qtic4f" 
                 <path fill-rule="evenodd" d="M14.4 8A6.4 6.4 0 1 1 1.6 8a6.4 6.4 0 0 1 12.8 0M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M6.971 4.857a1.029 1.029 0 1 1 2.058 0 1.029 1.029 0 0 1-2.058 0m1.943 6.4a.914.914 0 1 1-1.828 0V7.943a.914.914 0 1 1 1.828 0z"></path>
             </svg>
@@ -172,12 +248,14 @@ impl FeatureView {
             </svg>
         };
 
+        //SVG: icon to represent "showing more info"
         let svg_more = html! {
             <svg data-icon="more" height="10" role="img" viewBox="0 0 16 16" width="10">
                 <path d="M2 6.03a2 2 0 100 4 2 2 0 100-4zM14 6.03a2 2 0 100 4 2 2 0 100-4zM8 6.03a2 2 0 100 4 2 2 0 100-4z" fill-rule="evenodd"></path>
             </svg>
         };
 
+        //SVG: icon to color by this meta
         let svg_colorby = html! {
             <svg data-icon="tint" height="12" role="img" viewBox="0 0 16 16" width="12">
                 <path d="M7.88 1s-4.9 6.28-4.9 8.9c.01 2.82 2.34 5.1 4.99 5.1 2.65-.01 5.03-2.3 5.03-5.13C12.99 7.17 7.88 1 7.88 1z" fill-rule="evenodd"></path>
@@ -187,8 +265,22 @@ impl FeatureView {
         let histo_svg = self.make_histogram();
 
 
-        html! {
+        //Callback to color by this column
+        //let meta_name_copy = meta_name.clone();
+        let combo_feature_copy= combo_feature.clone();// = PerCellDataSource::Counts(count_name.clone(), feature_name.clone());
+        let cb_color_by = ctx.link().callback(move |_e: MouseEvent | { 
+            MsgFeature::SetColorBy(combo_feature_copy.clone())
+        });
 
+        let style_colorby_button = if ctx.props().current_colorby == combo_feature {
+            "background-color: #FF0000;"
+        } else {
+            ""
+        };
+
+
+
+        html! {
             <div>
                 <div style="margin-left: 5px; margin-right: 0px; margin-top: 2px; display: flex; justify-content: space-between; align-items: center;">
                     <div style="display: flex; justify-content: space-between; width: 100%;">  // role="menuitem" tabindex="0" data-testid="XBP1:gene-expand"    cursor: pointer; 
@@ -203,51 +295,54 @@ impl FeatureView {
                                 </span>
                             </span>
                         </div>
-                        <div class="css-567ik4">
+                        /* 
+                        <div> //  class="css-567ik4"
                             <button type="button"> //class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-1m6iddg" tabindex="0"  data-chromatic="ignore"
                                 <div> // class="css-1ft6wgl"
                                     {infocircle_svg}
                                 </div>
                             </button>
                         </div>
-                        <div style="width: 170px;">
+                        */
+                        <div style="display: flex; flex-grow: 1;"> //width: 5%;
                             <div style="padding: 0px; background-color: white;">
                                 {histo_svg}
                             </div>
                         </div>
                     </div>
                     <div style="flex-shrink: 0; margin-left: 2px; display: flex;">
-                        <button type="button" data-testid="maximize-XBP1" class="bp5-button bp5-minimal bp5-small" style="margin-right: 2px;">
-                            <span aria-hidden="true" class="bp5-icon bp5-icon-maximize">
+                        <button type="button" style="margin-right: 2px;"> // class="bp5-button bp5-minimal bp5-small" 
+                            <span aria-hidden="true"> // class="bp5-icon bp5-icon-maximize"
                                 {svg_maximize}
                             </span>
                         </button>
-                        <div aria-controls="listbox-11" class="bp5-popover-target" aria-expanded="false" aria-haspopup="listbox" role="combobox">
-                            <button type="button" data-testid="more-actions:XBP1" class="bp5-button bp5-minimal bp5-small" style="margin-right: 2px;">
-                                <span aria-hidden="true" class="bp5-icon bp5-icon-more">
+                        <div aria-controls="listbox-11"  aria-expanded="false" aria-haspopup="listbox" role="combobox"> // class="bp5-popover-target"
+                            <button type="button"  style="margin-right: 2px;"> // class="bp5-button bp5-minimal bp5-small"
+                                <span aria-hidden="true"> // class="bp5-icon bp5-icon-more"
                                     {svg_more}
                                 </span>
                             </button>
                         </div>
-                        <button type="button" data-testid="colorby-XBP1" class="bp5-button bp5-active bp5-minimal bp5-small bp5-intent-primary">
-                            <span aria-hidden="true" class="bp5-icon bp5-icon-tint">
+                        <button type="button" onclick={cb_color_by} style={style_colorby_button}> // class="bp5-button bp5-active bp5-minimal bp5-small bp5-intent-primary"
+                            <span aria-hidden="true"> //  class="bp5-icon bp5-icon-tint"
                                 {svg_colorby}
                             </span>
                         </button>
                     </div>
                 </div>
             </div>
-
-
         }
 
     }
 
+
+
+
     ////////////////////////////////////////////////////////////
-    /// x
+    /// Render the histogram for one feature
     fn make_histogram(&self) -> VNode {
-        html! {                                
-            <svg width="170" height="15" id="histogram_XBP1_svg" style="display: block;">
+        html! {
+            <svg width="100%" height="15" style="display: block;">  // id="histogram_XBP1_svg" 
                 <g class="histogram-container" transform="translate(0,0)">
                     <g>
                         <rect x="1" y="0" width="4.25" height="15" style="fill: rgb(175, 240, 91);"></rect>

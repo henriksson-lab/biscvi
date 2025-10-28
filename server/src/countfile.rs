@@ -35,8 +35,11 @@ impl CountFile {
 
     ////////////////////////////////////////////////////////////
     /// 
-    pub fn get_counts_for_cell(&self, count_name: &String, row: u32) -> anyhow::Result<ClusterResponse> {
+    pub fn get_counts_for_cell(&self, count_name: &String, row: u32) -> anyhow::Result<MetadataColumnResponse> {
         //H5T_IEEE_F64LE
+
+        //ClusterResponse
+        
 
         let group_counts = self.file.group("/counts")?; 
         let group_cnt = group_counts.group(&count_name)?;
@@ -61,13 +64,21 @@ impl CountFile {
             row_start..row_end
         )?.iter().map(|x| *x).collect::<Vec<_>>();
 
+        /* 
         let v = ClusterResponse {
             indices: ret_indices,
             data: ret_data
-        };
+        };*/
 
-        Ok(v)
+        let v = CountFileMetaColumnData::SparseNumeric(
+            ret_indices,
+            ret_data,
+        );
 
+        Ok(MetadataColumnResponse {
+            data: v
+        })
+//        Ok(v)
     }
 
 

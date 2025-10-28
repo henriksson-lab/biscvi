@@ -2,23 +2,20 @@ use std::collections::HashMap;
 
 use crate::component_umap_main::UmapData;
 
+////////////////////////////////////////////////////////////
+/// ID of a bucket
 type Sector = (i32,i32);
-type UmapPoint = (f32,f32,usize);
+
+////////////////////////////////////////////////////////////
+/// Point in index: x,y, ID
+type UmapPoint = (f32,f32,usize); 
 
 
 ////////////////////////////////////////////////////////////
-/// 
-fn dist2(x1:f32,y1:f32,   x2:f32,y2:f32) -> f32 {
-        let dx = x1 - x2;
-        let dy = y1 - y2;
-        let dist2 = dx*dx + dy*dy;
-        dist2
-}
-
-
-
-////////////////////////////////////////////////////////////
-/// 
+/// Data structure for fast lookup of which point is closest to a given structure.
+/// The system is simple: the world is divided up into square buckets, reducing
+/// the number of points to be checked. This assumes that points beyond a certain
+/// distance are not relevant.
 pub struct UmapPointIndex {
     sectors: HashMap<Sector, Vec<UmapPoint>>,
     max_dist: f32
@@ -26,7 +23,7 @@ pub struct UmapPointIndex {
 impl UmapPointIndex {
 
     ////////////////////////////////////////////////////////////
-    /// 
+    /// Construct an empty index
     pub fn new() -> UmapPointIndex {
         UmapPointIndex {
             sectors: HashMap::new(),
@@ -35,14 +32,14 @@ impl UmapPointIndex {
     }
 
     ////////////////////////////////////////////////////////////
-    /// 
+    /// Remove all points from the index
     pub fn clear(&mut self) {
         self.sectors.clear();
 
     }
 
     ////////////////////////////////////////////////////////////
-    /// 
+    /// Get sector ID (bucket) for a given point
     pub fn get_sector_id(&self, x: f32, y: f32) -> Sector {
         (
             ((x as f32)/self.max_dist) as i32,
@@ -51,7 +48,7 @@ impl UmapPointIndex {
     }
 
     ////////////////////////////////////////////////////////////
-    /// 
+    /// From a reduction, place all points into their buckets
     pub fn build_point_index(&mut self, umap: &UmapData, max_dist: f32) {
         self.clear();
         self.max_dist = max_dist;
@@ -83,7 +80,7 @@ impl UmapPointIndex {
 
 
     ////////////////////////////////////////////////////////////
-    /// 
+    /// Find the point closest to the given point, if any is close enough
     pub fn get_closest_point(&self, x:f32, y:f32) -> Option<usize> {
 
         //Scan all sectors around mouse for candidate points
@@ -137,10 +134,15 @@ impl UmapPointIndex {
             None
         }
     }
+
 }
 
 
-
-
-
-
+////////////////////////////////////////////////////////////
+/// Compute length^2 of a 2d vector
+fn dist2(x1:f32,y1:f32,   x2:f32,y2:f32) -> f32 {
+        let dx = x1 - x2;
+        let dy = y1 - y2;
+        let dist2 = dx*dx + dy*dy;
+        dist2
+}

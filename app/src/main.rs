@@ -8,11 +8,12 @@ pub mod component_umap_right;
 pub mod umap_index;
 pub mod appstate;
 pub mod resize;
+pub mod histogram;
 
 use crate::core_model::*;
 
 ////////////////////////////////////////////////////////////
-/// x
+/// Entry point for wasm application
 fn main() {
     wasm_logger::init(wasm_logger::Config::default());
     yew::Renderer::<Model>::new().render();

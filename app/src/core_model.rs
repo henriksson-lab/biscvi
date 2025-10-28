@@ -3,6 +3,7 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use my_web_app::ClusterRequest;
 use my_web_app::DatasetDescRequest;
 use my_web_app::DatasetDescResponse;
 use my_web_app::MetadataColumnRequest;
@@ -17,6 +18,7 @@ use bytes::Buf;
 
 use crate::appstate::AsyncData;
 use crate::appstate::BiscviData;
+use crate::appstate::PerCellDataSource;
 use crate::component_umap_main::from_response_to_umap_data;
 use crate::component_umap_main::UmapColoring;
 use crate::resize::ComponentSize;
@@ -47,8 +49,8 @@ pub enum Msg {
     GetReduction(String),
     SetReduction(String, ReductionResponse),
 
-    RequestSetColorByMeta(String),
-    SetColorByMeta(String, Option<MetadataColumnResponse>),
+    RequestSetColorByMeta(PerCellDataSource),
+    SetColorByMeta(PerCellDataSource, Option<MetadataColumnResponse>),
 
     DataChanged, //Just update using "true"
 
@@ -66,8 +68,8 @@ pub struct Model {
     pub current_reduction: Option<String>,              //should be state of a page; move later
     pub current_datadesc: AsyncData<DatasetDescResponse>,  //For now, makes sense to keep this here, as it is static. but risks becoming really large
     pub current_data: Arc<Mutex<BiscviData>>,           //Has interior mutability. Yew will not be able to sense updates! Need to signal in other ways
-    pub color_umap_by: UmapColoring, //// currently assumed
-
+    pub color_umap_by: UmapColoring, //// currently assumed   change this
+    pub current_colorby: PerCellDataSource,
     pub last_component_size: ComponentSize
 }
 impl Component for Model {
@@ -92,6 +94,7 @@ impl Component for Model {
             current_data: current_data,
             color_umap_by: UmapColoring::None,
             last_component_size: ComponentSize { width: 100.0, height: 100.0 },
+            current_colorby: PerCellDataSource::Metadata("".into()),
         }
     }
 
@@ -217,35 +220,73 @@ impl Component for Model {
 
                 let has_data = self.current_data.lock().unwrap().metadatas.contains_key(&name);
 
-                //For now, point to new data
+                //For now, point to show new data. But we might not yet have it
+                self.current_colorby = name.clone();
                 ctx.link().send_message(Msg::SetColorByMeta(name.clone(), None));
 
                 //If needed, request data
                 if !has_data {
 
-                    let query: MetadataColumnRequest = MetadataColumnRequest {
-                        column_name: name.clone(),
-                    };
-                    let query_json = serde_json::to_vec(&query).expect("Could not convert to json");
+                    match &name {
+                        PerCellDataSource::Metadata(column_name) => {
 
-                    let name=name.clone();
-                    let get_data = async move {
-                        let client = reqwest::Client::new();
-                        let res = client.post(format!("{}/get_metacolumn",get_host_url())) 
-                            .header("Content-Type", "application/json")
-                            .body(query_json) 
-                            .send()
-                            .await
-                            .expect("Failed to send request")
-                            .bytes()
-                            .await
-                            .expect("Could not get binary data");
-                        //log::debug!("sent reduction request {:?}",res);
-                        let res: MetadataColumnResponse  = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
+                            let query: MetadataColumnRequest = MetadataColumnRequest {
+                                column_name: column_name.clone(),
+                            };
+                            let query_json = serde_json::to_vec(&query).expect("Could not convert to json");
 
-                        Msg::SetColorByMeta(name, Some(res))
-                    };
-                    ctx.link().send_future(get_data);
+                            let name=name.clone();
+                            let get_data = async move {
+                                let client = reqwest::Client::new();
+                                let res = client.post(format!("{}/get_metacolumn",get_host_url())) 
+                                    .header("Content-Type", "application/json")
+                                    .body(query_json) 
+                                    .send()
+                                    .await
+                                    .expect("Failed to send request")
+                                    .bytes()
+                                    .await
+                                    .expect("Could not get binary data");
+                                //log::debug!("sent reduction request {:?}",res);
+                                let res: MetadataColumnResponse  = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
+
+                                Msg::SetColorByMeta(name, Some(res))
+                            };
+                            ctx.link().send_future(get_data);                            
+
+                        },
+                        PerCellDataSource::Counts(counts_name, feature_name) => {
+
+                            let query = ClusterRequest {
+                                counts_name: counts_name.clone(),
+                                row: 0, // column_name.clone(),   feature_name
+                            };
+                            let query_json = serde_json::to_vec(&query).expect("Could not convert to json");
+
+                            let name=name.clone();
+                            let get_data = async move {
+                                let client = reqwest::Client::new();
+                                let res = client.post(format!("{}/get_featurecounts",get_host_url()))  /////////////////////////////////
+                                    .header("Content-Type", "application/json")
+                                    .body(query_json) 
+                                    .send()
+                                    .await
+                                    .expect("Failed to send request")
+                                    .bytes()
+                                    .await
+                                    .expect("Could not get binary data");
+                                let res: MetadataColumnResponse  = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
+
+                                log::debug!("got response {:?}",res);
+
+                                Msg::SetColorByMeta(name, Some(res))
+                            };
+                            ctx.link().send_future(get_data);
+
+                        },
+                    }
+
+
                 }
                 false
             },
@@ -255,7 +296,7 @@ impl Component for Model {
             // Message: Set reduction data, sent from server
             Msg::SetColorByMeta(name, res) => {  
 
-                log::debug!("RequestSetColorByMeta {} {:?}",name, res);
+                log::debug!("SetColorByMeta {} {:?}",name, res);
 
                 //Update data if needed
                 if let Some(res) = res {
@@ -334,10 +375,6 @@ impl Component for Model {
 
 
 
-
-
-
-
 ////////////////////////////////////////////////////////////
 /// Show an alert message
 pub fn alert(s: &str) {
@@ -346,6 +383,8 @@ pub fn alert(s: &str) {
 }
 
 
+////////////////////////////////////////////////////////////
+/// Construct a URL to this website
 pub fn get_host_url() -> String {
     let document = window().expect("no window").document().expect("no document on window");
     let location = document.location().expect("no location");
@@ -356,7 +395,3 @@ pub fn get_host_url() -> String {
     //log::debug!("{}",url);
     url
 }
-
-// https://yew.rs/docs/next/advanced-topics/struct-components/hoc
-
-

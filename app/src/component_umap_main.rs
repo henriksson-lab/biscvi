@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::io::BufRead;
 use std::io::Cursor;
 use std::io::BufReader;
@@ -15,8 +14,10 @@ use yew::{html, Callback, Component, Context, Html, MouseEvent, NodeRef, WheelEv
 use yew::Properties;
 
 use crate::appstate::AsyncData;
+use crate::appstate::PerCellDataSource;
 use crate::camera::Camera2D;
 use crate::camera::Rectangle2D;
+use crate::histogram::make_safe_minmax;
 use crate::resize::ComponentSize;
 use crate::umap_index::UmapPointIndex;
 
@@ -25,12 +26,21 @@ use crate::umap_index::UmapPointIndex;
 
 
 ////////////////////////////////////////////////////////////
+/// RGB color, 0...1
+type Color3f = (f32,f32,f32);
+
+
+////////////////////////////////////////////////////////////
+/// Vectors, 3d and 4d
+type Vec3 = (f32,f32,f32);
+type Vec4 = (f32,f32,f32,f32);
+
+////////////////////////////////////////////////////////////
 /// Coloring of the reduction
 #[derive(PartialEq, Clone)]
 pub enum UmapColoring {
     None,
-    ByMeta(String),
-    //ByFeature(usize), // todo
+    ByMeta(PerCellDataSource),   //////////// this datastructure is not really needed => option
 }
 
 
@@ -39,12 +49,11 @@ pub enum UmapColoring {
 #[derive(PartialEq, Clone)]
 pub enum UmapColoringWithData {
     None,
-    ByMeta(String, AsyncData<CountFileMetaColumnData>),
-    //ByFeature(usize), // todo
+    ByMeta(PerCellDataSource, AsyncData<CountFileMetaColumnData>), //////////// this datastructure is not really needed => option
 }
 
 ////////////////////////////////////////////////////////////
-/// 
+/// Coordinates for a reduction
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UmapData {
     pub num_point: usize,
@@ -59,6 +68,9 @@ pub struct UmapData {
     //    keep this in a cache? x,y and xy together??
 
 
+
+////////////////////////////////////////////////////////////
+/// Convert from a reduction server response to a optimized data structure
 pub fn from_response_to_umap_data(resp: ReductionResponse) -> UmapData {
 
     let num_point= resp.x.len();
@@ -117,7 +129,7 @@ pub fn from_response_to_umap_data(resp: ReductionResponse) -> UmapData {
 
 
 ////////////////////////////////////////////////////////////
-/// x
+/// Enum for the currently selected tool
 #[derive(Debug, PartialEq)]
 pub enum CurrentTool {
     Zoom,
@@ -126,114 +138,63 @@ pub enum CurrentTool {
 }
 
 
-
-
-
 ////////////////////////////////////////////////////////////
 /// Message sent to the event system for updating the page
 #[derive(Debug)]
 pub enum MsgUMAP {
-
-//    GetCoord,
-//    SetCoord(Option<UmapData>),
-
     MouseMove(f32,f32, bool),
     MouseClick,
     MouseWheel(f32),
-
     MouseStartSelect(f32,f32),
     MouseEndSelect(f32,f32),
-
     SelectCurrentTool(CurrentTool),
 }
 
 
 ////////////////////////////////////////////////////////////
-/// x
+/// Properties for ReductionView
 #[derive(Properties, PartialEq)]
 pub struct Props {
     pub on_cell_hovered: Callback<Option<usize>>,
     pub on_cell_clicked: Callback<Vec<usize>>,
-
     pub umap: AsyncData<UmapData>, 
-//    pub on_cell_hovered: Callback<Option<String>>,
-//    pub on_cell_clicked: Callback<Vec<String>>,
-
     pub color_umap_by: UmapColoringWithData,
-
     pub last_component_size: ComponentSize,
 
 }
 
-type Color3f = (f32,f32,f32);
 
 ////////////////////////////////////////////////////////////
-/// 
-/// Wrap gl in Rc (Arc for multi-threaded) so it can be injected into the render-loop closure.
+/// random note: Wrap gl in Rc (Arc for multi-threaded) so it can be injected into the render-loop closure.
 pub struct UmapView {
     node_ref: NodeRef,
     last_pos: (f32,f32),
     last_cell: Option<usize>,
     umap_index: UmapPointIndex,
-
-    //coloring: UmapMetadata,
-    current_coloring: String,
-
     current_tool: CurrentTool,
     camera: Camera2D,
-
     current_selection: Option<Rectangle2D>,
-
-    //color_dict: HashMap<String, Vec<Color3f>>,
-
     last_umap: AsyncData<UmapData>,
 }
 
-/*
-impl UmapView {
-    fn get_current_palette(&self) -> &Vec<Color3f> {
-        self.color_dict.get(
-            &self.current_coloring
-        ).or(       
-            self.color_dict.get("default")
-        ).expect(
-            &format!{"Cannot find palette /{}/", self.current_coloring}
-        )
-    } 
-}
- */
-
-
-////////////////////////////////////////////////////////////
-/// x
 impl Component for UmapView {
     type Message = MsgUMAP;
     type Properties = Props;
 
     ////////////////////////////////////////////////////////////
-    /// x
+    /// Create this component
     fn create(_ctx: &Context<Self>) -> Self {
-
-    
         Self {
             node_ref: NodeRef::default(),
-            //umap: None,
             last_pos: (0.0,0.0),
             last_cell: None,
             umap_index: UmapPointIndex::new(), //tricky... adapt to umap size??
-            current_coloring: String::new(),
             current_tool: CurrentTool::Select,
             camera: Camera2D::new(),
             current_selection: None,
-
-            //color_dict: color_dict,
-
             last_umap: AsyncData::NotLoaded,
         }
     }
-
-
-
 
 
     ////////////////////////////////////////////////////////////
@@ -545,11 +506,10 @@ impl Component for UmapView {
 
 
     ////////////////////////////////////////////////////////////
-    /// x
+    /// Called after DOM has been created
     fn rendered(&mut self, ctx: &Context<Self>, _first_render: bool) {
 
         let prop_umap = &ctx.props().umap;
-
 
         if let AsyncData::Loaded(umap) = prop_umap {
 
@@ -604,7 +564,6 @@ impl Component for UmapView {
                 vec_vertex.push(0.0); ///////////////////////////////////////////////// color index. remove, put in separate buffer
                 vec_vertex.push(0.0); ///////////////////////////////////////////////// color index. remove, put in separate buffer    filler for now
                 vec_vertex.push(0.0); ///////////////////////////////////////////////// color index. remove, put in separate buffer
-
             }
 
             //Get color data
@@ -630,12 +589,7 @@ impl Component for UmapView {
                         CountFileMetaColumnData::Numeric(vec_data) => {
 
                             //Normalize color range. TODO should only need to do this once during loading
-                            let mut max_val = 0.0;
-                            for p in vec_data {
-                                if *p > max_val {
-                                    max_val = *p;
-                                }
-                            }
+                            let (_min_val, max_val) = make_safe_minmax(&vec_data);
 
                             for (i,p) in vec_data.into_iter().enumerate() {
                                 //RGB
@@ -643,19 +597,25 @@ impl Component for UmapView {
                                 vec_vertex[vec_vertex_size*i + 4] = 0.0;
                                 vec_vertex[vec_vertex_size*i + 5] = 0.0;
                             }
-                        }
+                        },
+
+                        CountFileMetaColumnData::SparseNumeric(vec_index, vec_data) => {
+
+                            //Normalize color range. TODO should only need to do this once during loading
+                            let (_min_val, max_val) = make_safe_minmax(&vec_data);
+
+                            for (i,p) in vec_index.iter().zip(vec_data.iter()) {
+                                let i = *i as usize;
+                                //RGB
+                                vec_vertex[vec_vertex_size*i + 3] = p/max_val;
+                                vec_vertex[vec_vertex_size*i + 4] = 0.0;
+                                vec_vertex[vec_vertex_size*i + 5] = 0.0;
+                            }
+                        },
                     }
                 }
             } else {
                 // Put in an empty color (default is black now)
-                /*                
-                for i in 0..num_points {
-                    let r = (i as f32)/(num_points as f32);
-                    vec_vertex[vec_vertex_size*i + 3] = r;
-                    vec_vertex[vec_vertex_size*i + 4] = 0.0;
-                    vec_vertex[vec_vertex_size*i + 5] = 0.0;
-                }               
-                 */
             }
 
             //Connect vertex array to GL
@@ -726,9 +686,7 @@ impl Component for UmapView {
             
             // to make round points, need to draw square https://stackoverflow.com/questions/7237086/opengl-es-2-0-equivalent-for-es-1-0-circles-using-gl-point-smooth
             gl.draw_arrays(GL::POINTS, 0, num_points as i32);
-
         }
-
 
     }
 }
@@ -736,8 +694,6 @@ impl Component for UmapView {
 
 
 
-type Vec3 = (f32,f32,f32);
-type Vec4 = (f32,f32,f32,f32);
 
 ////////////////////////////////////////////////////////////
 /// Convert RGB to HSV, 0-1 range, made to match GLSL version exactly
@@ -774,7 +730,7 @@ pub fn hsv2rgb(c: Vec3) -> Vec3 {
 
 
 ////////////////////////////////////////////////////////////
-/// x
+/// Convert from vector to HTML color code
 pub fn rgbvec2string(c: Vec3) -> String {
     let red=(c.0*255.0) as u8;
     let green=(c.1*255.0) as u8;
@@ -785,7 +741,7 @@ pub fn rgbvec2string(c: Vec3) -> String {
 
 
 ////////////////////////////////////////////////////////////
-/// x
+/// Get current camera position from a mouse event
 fn mouseevent_get_cx(e: &MouseEvent) -> (f32,f32) {
     let target: Option<EventTarget> = e.target();
     let canvas: HtmlCanvasElement = target.and_then(|t| t.dyn_into::<HtmlCanvasElement>().ok()).expect("wrong type");
@@ -808,7 +764,7 @@ fn mouseevent_get_cx(e: &MouseEvent) -> (f32,f32) {
 
 
 ////////////////////////////////////////////////////////////
-/// x
+/// Read color RGB vector from html string to 0..255
 pub fn parse_rgb_int(s: &String) -> (i64, i64, i64) {
 
     let s = s.as_str();
@@ -826,7 +782,7 @@ pub fn parse_rgb_int(s: &String) -> (i64, i64, i64) {
 
 
 ////////////////////////////////////////////////////////////
-/// x
+/// Read color RGB vector from html string to 0..1
 pub fn parse_rgb_f64(s: &String) -> (f32, f32, f32) {
     let (r,g,b) = parse_rgb_int(s);
     (

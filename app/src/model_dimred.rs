@@ -1,24 +1,21 @@
-use crate::{appstate::AsyncData, component_umap_main::{UmapColoring, UmapColoringWithData, UmapView}, core_model::*};
+use crate::{appstate::{AsyncData, PerCellDataSource}, component_umap_main::{UmapColoring, UmapColoringWithData, UmapView}, core_model::*};
 
 use yew::{prelude::*};
-
 
 use crate::component_umap_left::MetadataView;
 use crate::component_umap_right::FeatureView;
 
 impl Model {
-
-
-
+    
     ////////////////////////////////////////////////////////////
-    /// x
+    /// Get the current coloring data
     pub fn get_umap_coloring(&self) -> UmapColoringWithData {
         match &self.color_umap_by {
             UmapColoring::None => UmapColoringWithData::None,
             UmapColoring::ByMeta(name) => {
                 let dat=self.current_data.lock().unwrap().get_metadata(&name);
                 UmapColoringWithData::ByMeta(name.clone(), dat)
-            }
+            },
         }
     }
 
@@ -27,16 +24,17 @@ impl Model {
     /// x
     pub fn view_dimred_page(&self, ctx: &Context<Self>) -> Html {
 
+        //Callback: Hovering a certain cell
         let on_cell_hovered = Callback::from(move |_name: Option<usize>| {
         });
 
+        //Callback: Clicked on a cell
         let on_cell_clicked = Callback::from(move |_name: Vec<usize>| {
         });
 
-
-
-        let on_colorbymeta= ctx.link().callback(move |name: String| {
-            Msg::RequestSetColorByMeta(name)
+        //Callback: coloring by something
+        let on_colorbymeta= ctx.link().callback(move |name: PerCellDataSource| {
+            Msg::RequestSetColorByMeta(name)  // UmapColoring instead?
         });
 
         //Get reduction
@@ -45,7 +43,7 @@ impl Model {
             current_umap_data = self.current_data.lock().unwrap().get_reduction(current_reduction)
         }
 
-        //Get coloring
+        //Get current coloring data
         let coloring_data = self.get_umap_coloring();
 
         html! {
@@ -62,16 +60,16 @@ impl Model {
                 <MetadataView 
                     current_datadesc={self.current_datadesc.clone()} 
                     on_colorbymeta={on_colorbymeta.clone()}
+                    current_colorby={self.current_colorby.clone()}
                 />
                 <FeatureView
                     current_datadesc={self.current_datadesc.clone()}
-                    on_colorbymeta={on_colorbymeta}  //expand, not just meta?
+                    on_colorbyfeature={on_colorbymeta}  //expand, not just meta?
+                    current_colorby={self.current_colorby.clone()}
                 />
             </div>
         }
     }
 
 
-
 }
-

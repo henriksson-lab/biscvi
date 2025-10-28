@@ -60,14 +60,12 @@ pub struct MetadataColumnRequest {
 }
 
 
-
-
-
 ////////////////////////////////////////////////////////////
 /// 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum CountFileMetaColumnData {
     Numeric(Vec<f32>),
+    SparseNumeric(Vec<u32>, Vec<f32>), // indices, data
     Categorical(Vec<u32>, Vec<String>), //u32 is a lot
 }
 impl CountFileMetaColumnData {

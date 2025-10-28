@@ -4,9 +4,8 @@ use yew::prelude::*;
 
 impl Model {
 
-
     ////////////////////////////////////////////////////////////
-    /// x
+    /// Render files pane
     pub fn view_files_page(&self, _ctx: &Context<Self>) -> Html {
 
         html! {

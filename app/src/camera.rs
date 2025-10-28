@@ -2,7 +2,7 @@ use crate::component_umap_main::UmapData;
 
 
 ////////////////////////////////////////////////////////////
-/// x
+/// A camera for 2D scenes
 #[derive(Debug, PartialEq)]
 pub struct Camera2D {
     pub x: f32,
@@ -13,7 +13,7 @@ pub struct Camera2D {
 impl Camera2D {
 
     ////////////////////////////////////////////////////////////
-    /// x
+    /// Construct a neutral camera
     pub fn new() -> Camera2D {
         Camera2D {
             x: 0.0,
@@ -24,7 +24,7 @@ impl Camera2D {
     }
 
     ////////////////////////////////////////////////////////////
-    /// x
+    /// Transform from camera to world coordinate system
     pub fn cam2world(&self, cx: f32, cy:f32) -> (f32,f32) {
         (
             cx/self.zoom_x + self.x,
@@ -34,7 +34,7 @@ impl Camera2D {
 
 
     ////////////////////////////////////////////////////////////
-    /// x
+    /// Transform from world to camera coordinate system
     pub fn world2cam(&self, wx: f32, wy:f32) -> (f32,f32) {
         (
             (wx-self.x)*self.zoom_x,
@@ -44,7 +44,7 @@ impl Camera2D {
 
 
     ////////////////////////////////////////////////////////////
-    /// x
+    /// Adjust camera to fit all points 
     pub fn fit_umap(&mut self, umap: &UmapData) {
         self.x = (umap.min_x + umap.max_x)/2.0;
         self.y = (umap.min_y + umap.max_y)/2.0;
@@ -59,8 +59,7 @@ impl Camera2D {
 
 
     ////////////////////////////////////////////////////////////
-    /// Zoom around this position.
-    /// i.e. it should be in the same position in camera coordinates after zoom has been applied
+    /// Zoom in and out around a given position
     /// 
     /// world2cam(mouse_pos, zoom1) = world2cam(mouse_pos, zoom2)
     /// for: world2cam(wx,zoom_x) = (wx-cam_x)*zoom_x
@@ -88,7 +87,7 @@ impl Camera2D {
 
 
 ////////////////////////////////////////////////////////////
-/// x
+/// A 2D rectangle
 #[derive(Debug, PartialEq)]
 pub struct Rectangle2D {
     pub x1: f32,
@@ -97,6 +96,9 @@ pub struct Rectangle2D {
     pub y2: f32
 }
 impl Rectangle2D {
+
+    ////////////////////////////////////////////////////////////
+    /// Get min and max of rectangle span, X coordinate
     pub fn range_x(&self) -> (f32, f32) {
         if self.x1<self.x2 {
             (self.x1,self.x2)
@@ -105,6 +107,8 @@ impl Rectangle2D {
         }
     }
 
+    ////////////////////////////////////////////////////////////
+    /// Get min and max of rectangle span, Y coordinate
     pub fn range_y(&self) -> (f32, f32) {
         if self.y1<self.y2 {
             (self.y1,self.y2)
