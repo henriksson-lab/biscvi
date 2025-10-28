@@ -20,3 +20,8 @@ install:
 
 loc:
 	wc -l app/src/* src/* server/src/*
+
+tools:
+	cargo install cargo-watch
+	cargo install trunk
+	rustup target add wasm32-unknown-unknown
