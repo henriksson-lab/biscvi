@@ -1,4 +1,4 @@
-use crate::component_umap_main::UmapData;
+use crate::component_reduction_main::ReductionViewData;
 
 
 ////////////////////////////////////////////////////////////
@@ -45,7 +45,7 @@ impl Camera2D {
 
     ////////////////////////////////////////////////////////////
     /// Adjust camera to fit all points 
-    pub fn fit_umap(&mut self, umap: &UmapData) {
+    pub fn fit_reduction(&mut self, umap: &ReductionViewData) {
         self.x = (umap.min_x + umap.max_x)/2.0;
         self.y = (umap.min_y + umap.max_y)/2.0;
 

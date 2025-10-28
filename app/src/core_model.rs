@@ -19,8 +19,8 @@ use bytes::Buf;
 use crate::appstate::AsyncData;
 use crate::appstate::BiscviData;
 use crate::appstate::PerCellDataSource;
-use crate::component_umap_main::from_response_to_umap_data;
-use crate::component_umap_main::UmapColoring;
+use crate::component_reduction_main::convert_from_response_to_reduction_data;
+use crate::component_reduction_main::ReductionColoring;
 use crate::resize::ComponentSize;
 use crate::resize::ComponentSizeObserver;
 
@@ -68,7 +68,7 @@ pub struct Model {
     pub current_reduction: Option<String>,              //should be state of a page; move later
     pub current_datadesc: AsyncData<DatasetDescResponse>,  //For now, makes sense to keep this here, as it is static. but risks becoming really large
     pub current_data: Arc<Mutex<BiscviData>>,           //Has interior mutability. Yew will not be able to sense updates! Need to signal in other ways
-    pub color_umap_by: UmapColoring, //// currently assumed   change this
+    pub color_umap_by: ReductionColoring, //// currently assumed   change this
     pub current_colorby: PerCellDataSource,
     pub last_component_size: ComponentSize
 }
@@ -81,9 +81,9 @@ impl Component for Model {
     /// Create a new component
     fn create(ctx: &Context<Self>) -> Self {
 
+        //Get initial data to show
         ctx.link().send_message(Msg::GetDatasetDesc());
         ctx.link().send_message(Msg::GetReduction("kraken_umap".into()));
-//        ctx.link().send_message(MsgUMAP::GetReduction());
 
         let current_data = Arc::new(Mutex::new(BiscviData::new()));
 
@@ -92,7 +92,7 @@ impl Component for Model {
             current_reduction: None,
             current_datadesc: AsyncData::NotLoaded,
             current_data: current_data,
-            color_umap_by: UmapColoring::None,
+            color_umap_by: ReductionColoring::None,
             last_component_size: ComponentSize { width: 100.0, height: 100.0 },
             current_colorby: PerCellDataSource::Metadata("".into()),
         }
@@ -204,7 +204,7 @@ impl Component for Model {
                 log::debug!("set reduction from server {} ",reduction_name);
 
                 let mut current_data = self.current_data.lock().unwrap();
-                let umap_data = from_response_to_umap_data(res);
+                let umap_data = convert_from_response_to_reduction_data(res);
                 
                 current_data.reductions.insert(reduction_name, AsyncData::new(umap_data));
 
@@ -303,7 +303,7 @@ impl Component for Model {
                     let mut current_data = self.current_data.lock().unwrap();
                     current_data.metadatas.insert(name.clone(), AsyncData::new(res.data));
                 }
-                self.color_umap_by = UmapColoring::ByMeta(name);  //TODO: could compare by pointer to force updates
+                self.color_umap_by = ReductionColoring::ByMeta(name);  //TODO: could compare by pointer to force updates
                 true
             },
 

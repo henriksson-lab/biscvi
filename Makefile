@@ -17,3 +17,6 @@ install:
 	rustup target add wasm32-unknown-unknown
 	cargo install trunk
 	cargo install cargo-watch
+
+loc:
+	wc -l app/src/* src/* server/src/*

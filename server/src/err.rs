@@ -3,7 +3,8 @@ use actix_error::AsApiError;
 use actix_error::AsApiErrorTrait;
 use actix_error::ApiError;
 
-
+////////////////////////////////////////////////////////////
+/// Custom error for Actix
 #[derive(Debug, AsApiError)]
 pub enum MyError {
     //#[api_error(status = "NotFound", msg = "The requested resource was not found.")]
@@ -47,6 +48,9 @@ pub enum MyError {
 }
 
 
+////////////////////////////////////////////////////////////
+// Converters to Actix error
+////////////////////////////////////////////////////////////
 
 impl From<std::io::Error> for MyError {
     fn from(error: std::io::Error) -> Self {
@@ -54,13 +58,11 @@ impl From<std::io::Error> for MyError {
     }
 }
 
-
 impl From<anyhow::Error> for MyError {
     fn from(error: anyhow::Error) -> Self {
         MyError::AnyhowError {err: error}
     }
 }
-
 
 impl From<serde_cbor::Error> for MyError {
     fn from(error: serde_cbor::Error) -> Self {

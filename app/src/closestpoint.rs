@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use crate::component_umap_main::UmapData;
+use crate::component_reduction_main::ReductionViewData;
 
 ////////////////////////////////////////////////////////////
 /// ID of a bucket
-type Sector = (i32,i32);
+type SectorID = (i32,i32);
 
 ////////////////////////////////////////////////////////////
 /// Point in index: x,y, ID
-type UmapPoint = (f32,f32,usize); 
+type IndexedPoint = (f32,f32,usize); 
 
 
 ////////////////////////////////////////////////////////////
@@ -16,16 +16,16 @@ type UmapPoint = (f32,f32,usize);
 /// The system is simple: the world is divided up into square buckets, reducing
 /// the number of points to be checked. This assumes that points beyond a certain
 /// distance are not relevant.
-pub struct UmapPointIndex {
-    sectors: HashMap<Sector, Vec<UmapPoint>>,
+pub struct ClosestPointIndex2D {
+    sectors: HashMap<SectorID, Vec<IndexedPoint>>,
     max_dist: f32
 }
-impl UmapPointIndex {
+impl ClosestPointIndex2D {
 
     ////////////////////////////////////////////////////////////
     /// Construct an empty index
-    pub fn new() -> UmapPointIndex {
-        UmapPointIndex {
+    pub fn new() -> ClosestPointIndex2D {
+        ClosestPointIndex2D {
             sectors: HashMap::new(),
             max_dist: 1.0 //do not do 0.0 to avoid division by 0
         }
@@ -40,7 +40,7 @@ impl UmapPointIndex {
 
     ////////////////////////////////////////////////////////////
     /// Get sector ID (bucket) for a given point
-    pub fn get_sector_id(&self, x: f32, y: f32) -> Sector {
+    pub fn get_sector_id(&self, x: f32, y: f32) -> SectorID {
         (
             ((x as f32)/self.max_dist) as i32,
             ((y as f32)/self.max_dist) as i32,
@@ -49,7 +49,7 @@ impl UmapPointIndex {
 
     ////////////////////////////////////////////////////////////
     /// From a reduction, place all points into their buckets
-    pub fn build_point_index(&mut self, umap: &UmapData, max_dist: f32) {
+    pub fn build_point_index(&mut self, umap: &ReductionViewData, max_dist: f32) {
         self.clear();
         self.max_dist = max_dist;
 

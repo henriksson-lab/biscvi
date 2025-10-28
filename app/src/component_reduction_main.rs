@@ -6,7 +6,6 @@ use my_web_app::CountFileMetaColumnData;
 use my_web_app::ReductionResponse;
 use serde::Deserialize;
 use serde::Serialize;
-//use my_web_app::{UmapData, UmapMetadata};
 use wasm_bindgen::JsCast;
 use web_sys::window;
 use web_sys::{DomRect, EventTarget, HtmlCanvasElement, WebGlRenderingContext as GL};
@@ -19,7 +18,7 @@ use crate::camera::Camera2D;
 use crate::camera::Rectangle2D;
 use crate::histogram::make_safe_minmax;
 use crate::resize::ComponentSize;
-use crate::umap_index::UmapPointIndex;
+use crate::closestpoint::ClosestPointIndex2D;
 
 
 // see https://github.com/yewstack/yew/blob/master/examples/webgl/src/main.rs
@@ -29,25 +28,22 @@ use crate::umap_index::UmapPointIndex;
 /// RGB color, 0...1
 type Color3f = (f32,f32,f32);
 
-
 ////////////////////////////////////////////////////////////
 /// Vectors, 3d and 4d
 type Vec3 = (f32,f32,f32);
-type Vec4 = (f32,f32,f32,f32);
 
 ////////////////////////////////////////////////////////////
 /// Coloring of the reduction
 #[derive(PartialEq, Clone)]
-pub enum UmapColoring {
+pub enum ReductionColoring {
     None,
     ByMeta(PerCellDataSource),   //////////// this datastructure is not really needed => option
 }
 
-
 ////////////////////////////////////////////////////////////
 /// Coloring of the reduction
 #[derive(PartialEq, Clone)]
-pub enum UmapColoringWithData {
+pub enum ReductionColoringWithData {
     None,
     ByMeta(PerCellDataSource, AsyncData<CountFileMetaColumnData>), //////////// this datastructure is not really needed => option
 }
@@ -55,7 +51,7 @@ pub enum UmapColoringWithData {
 ////////////////////////////////////////////////////////////
 /// Coordinates for a reduction
 #[derive(Debug, Deserialize, Serialize)]
-pub struct UmapData {
+pub struct ReductionViewData {
     pub num_point: usize,
     pub data: Vec<f32>,
     //pub ids: Vec<String>, //cluster_id
@@ -71,11 +67,11 @@ pub struct UmapData {
 
 ////////////////////////////////////////////////////////////
 /// Convert from a reduction server response to a optimized data structure
-pub fn from_response_to_umap_data(resp: ReductionResponse) -> UmapData {
+pub fn convert_from_response_to_reduction_data(resp: ReductionResponse) -> ReductionViewData {
 
     let num_point= resp.x.len();
 
-    //Figure out UMAP point range
+    //Figure out reduction point range
     let mut max_x = f32::MIN;
     let mut max_y = f32::MIN;
     let mut min_x = f32::MAX;
@@ -113,7 +109,7 @@ pub fn from_response_to_umap_data(resp: ReductionResponse) -> UmapData {
     }
      */
 
-    UmapData {
+    ReductionViewData {
         num_point: num_point,
         data: data,
         max_x: max_x,
@@ -141,7 +137,7 @@ pub enum CurrentTool {
 ////////////////////////////////////////////////////////////
 /// Message sent to the event system for updating the page
 #[derive(Debug)]
-pub enum MsgUMAP {
+pub enum MsgReduction {
     MouseMove(f32,f32, bool),
     MouseClick,
     MouseWheel(f32),
@@ -157,8 +153,8 @@ pub enum MsgUMAP {
 pub struct Props {
     pub on_cell_hovered: Callback<Option<usize>>,
     pub on_cell_clicked: Callback<Vec<usize>>,
-    pub umap: AsyncData<UmapData>, 
-    pub color_umap_by: UmapColoringWithData,
+    pub reduction_data: AsyncData<ReductionViewData>, 
+    pub color_reduction_by: ReductionColoringWithData,
     pub last_component_size: ComponentSize,
 
 }
@@ -166,19 +162,19 @@ pub struct Props {
 
 ////////////////////////////////////////////////////////////
 /// random note: Wrap gl in Rc (Arc for multi-threaded) so it can be injected into the render-loop closure.
-pub struct UmapView {
+pub struct ReductionView {
     node_ref: NodeRef,
     last_pos: (f32,f32),
     last_cell: Option<usize>,
-    umap_index: UmapPointIndex,
+    closest_point_index: ClosestPointIndex2D,
     current_tool: CurrentTool,
     camera: Camera2D,
     current_selection: Option<Rectangle2D>,
-    last_umap: AsyncData<UmapData>,
+    last_reduction_data: AsyncData<ReductionViewData>,
 }
 
-impl Component for UmapView {
-    type Message = MsgUMAP;
+impl Component for ReductionView {
+    type Message = MsgReduction;
     type Properties = Props;
 
     ////////////////////////////////////////////////////////////
@@ -188,11 +184,11 @@ impl Component for UmapView {
             node_ref: NodeRef::default(),
             last_pos: (0.0,0.0),
             last_cell: None,
-            umap_index: UmapPointIndex::new(), //tricky... adapt to umap size??
+            closest_point_index: ClosestPointIndex2D::new(), //tricky... adapt to umap size??
             current_tool: CurrentTool::Select,
             camera: Camera2D::new(),
             current_selection: None,
-            last_umap: AsyncData::NotLoaded,
+            last_reduction_data: AsyncData::NotLoaded,
         }
     }
 
@@ -202,17 +198,19 @@ impl Component for UmapView {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {            
 
-            MsgUMAP::MouseMove(x,y, press_left) => {
+            ////////////////////////////////////////////////////////////
+            // Message: Mouse has moved
+            MsgReduction::MouseMove(x,y, press_left) => {
                 let mut do_update = false;
                 let last_pos = self.last_pos;
                 self.last_pos = (x,y);
-//                log::debug!(".. {:?}", last_pos);
+                //  log::debug!(".. {:?}", last_pos);
 
                 //Handle pointer in world coordinates
                 let (wx,wy) = self.camera.cam2world(x as f32, y as f32);
 
                 //Handle hovering
-                let cp = self.umap_index.get_closest_point(wx, wy);  // sometimes a crash overflow here?? 666
+                let cp = self.closest_point_index.get_closest_point(wx, wy);  // sometimes a crash overflow here?? 666
                 //log::debug!("p: {:?}",cp);
                 //log::debug!("{} {}",x,y);
 
@@ -256,8 +254,9 @@ impl Component for UmapView {
                 do_update
             },
 
-
-            MsgUMAP::MouseWheel(dy) => {
+            ////////////////////////////////////////////////////////////
+            // Message: Mouse wheel rotated
+            MsgReduction::MouseWheel(dy) => {
                 let (cx,cy) = self.last_pos;
                 let (wx, wy) = self.camera.cam2world(cx, cy);
                 let scale = (10.0f32).powf(dy / 100.0);
@@ -265,17 +264,21 @@ impl Component for UmapView {
                 true
             },
 
-            MsgUMAP::MouseClick => {
+            ////////////////////////////////////////////////////////////
+            // Message: Mouse has clicked
+            MsgReduction::MouseClick => {
                 false
             },
 
-            MsgUMAP::SelectCurrentTool(t) => {
+            ////////////////////////////////////////////////////////////
+            // Message: A tool has been selected
+            MsgReduction::SelectCurrentTool(t) => {
 
-                let umap = &ctx.props().umap;
+                let reduction_data = &ctx.props().reduction_data;
 
                 if t==CurrentTool::ZoomAll {
-                    if let AsyncData::Loaded(umap) = umap {
-                        self.camera.fit_umap(umap);
+                    if let AsyncData::Loaded(reduction_data) = reduction_data {
+                        self.camera.fit_reduction(reduction_data);
                     }
                 } else {
                     self.current_tool=t;
@@ -283,8 +286,9 @@ impl Component for UmapView {
                 true
             },
 
-
-            MsgUMAP::MouseStartSelect(cx,cy) => {
+            ////////////////////////////////////////////////////////////
+            // Message: A selection of a region has started using mouse
+            MsgReduction::MouseStartSelect(cx,cy) => {
                 if self.current_tool==CurrentTool::Select {
                     let (wx,wy) = self.camera.cam2world(cx as f32, cy as f32);
                     self.current_selection = Some(Rectangle2D {
@@ -298,40 +302,38 @@ impl Component for UmapView {
                 } else {
                     false
                 }
-            }
+            },
 
-
-            MsgUMAP::MouseEndSelect(cx,cy) => {
+            ////////////////////////////////////////////////////////////
+            // Message: A selection of a region has ended using mouse
+            MsgReduction::MouseEndSelect(cx,cy) => {
                 if let Some(rect) = &mut self.current_selection {
                     let (wx,wy) = self.camera.cam2world(cx as f32, cy as f32);
                     rect.x2=wx;
                     rect.y2=wy;
 
-                    let umap = &ctx.props().umap;
+                    let reduction_data = &ctx.props().reduction_data;
 
-                    if let AsyncData::Loaded(umap) = umap {
+                    if let AsyncData::Loaded(reduction_data) = reduction_data {
 
                         let (x1,x2) =rect.range_x();
                         let (y1,y2) =rect.range_y();
 
                         if x1==x2 && y1==y2 {
                             log::debug!("this is a click");
-
                             if self.current_tool==CurrentTool::Select {
                                 if let Some(cell) = &self.last_cell {
                                     ctx.props().on_cell_clicked.emit(vec![cell.clone()]);
                                 }
                             }
-
                         } else {
                             log::debug!("this is a rect select");
-
                             //log::debug!("wrect {} -- {}     {} -- {}", x1,x2,    y1,y2);
 
                             //Scan all points to see if they are within the selection 
                             let mut selected_vert = Vec::new();
-                            let num_points = umap.num_point;
-                            let vertices = &umap.data;    
+                            let num_points = reduction_data.num_point;
+                            let vertices = &reduction_data.data;    
                             for i in 0..num_points {
                                 let px = *vertices.get(i*2+0).unwrap();
                                 let py = *vertices.get(i*2+1).unwrap();
@@ -360,75 +362,52 @@ impl Component for UmapView {
 
 
     ////////////////////////////////////////////////////////////
-    /// x
+    /// Render this component
     fn view(&self, ctx: &Context<Self>) -> Html {
 
-        /*
-        log::debug!("====================== render umap ");
-        let umap = &ctx.props().umap;
-        log::debug!("{:?}", umap);
-        log::debug!("############################");
- */
-
-
-        let mousemoved = ctx.link().callback(move |e: MouseEvent | { 
+        let cb_mousemoved = ctx.link().callback(move |e: MouseEvent | { 
             e.prevent_default();
             let (x_cam, y_cam) = mouseevent_get_cx(&e);
             let press_left = e.buttons() & 1 > 0;
 
-            MsgUMAP::MouseMove(x_cam,y_cam, press_left)
+            MsgReduction::MouseMove(x_cam,y_cam, press_left)
             //there is mouse movement! https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/movementX 
         });
-
-
         
-        let mousewheel = ctx.link().callback(move |e: WheelEvent | { 
+        let cb_mousewheel = ctx.link().callback(move |e: WheelEvent | { 
             e.prevent_default();
-            MsgUMAP::MouseWheel(e.delta_y() as f32)
+            MsgReduction::MouseWheel(e.delta_y() as f32)
         });
 
-
-        let mouseclicked = ctx.link().callback(move |_e: MouseEvent | { 
-            MsgUMAP::MouseClick
+        let cb_mouseclicked = ctx.link().callback(move |_e: MouseEvent | { 
+            MsgReduction::MouseClick
         });
-
         
-        let click_select = ctx.link().callback(move |_e: MouseEvent | { 
-            MsgUMAP::SelectCurrentTool(CurrentTool::Select)
+        let cb_click_select = ctx.link().callback(move |_e: MouseEvent | { 
+            MsgReduction::SelectCurrentTool(CurrentTool::Select)
         });
 
-        let click_zoom = ctx.link().callback(move |_e: MouseEvent | { 
-            MsgUMAP::SelectCurrentTool(CurrentTool::Zoom)
+        let cb_click_zoom = ctx.link().callback(move |_e: MouseEvent | { 
+            MsgReduction::SelectCurrentTool(CurrentTool::Zoom)
         });
 
-        let click_zoomall = ctx.link().callback(move |_e: MouseEvent | { 
-            MsgUMAP::SelectCurrentTool(CurrentTool::ZoomAll)
+        let cb_click_zoomall = ctx.link().callback(move |_e: MouseEvent | { 
+            MsgReduction::SelectCurrentTool(CurrentTool::ZoomAll)
         });
 
-
-
-        let onmousedown = ctx.link().callback(move |e: MouseEvent | { 
+        let cb_onmousedown = ctx.link().callback(move |e: MouseEvent | { 
             e.prevent_default();
             let (x_cam, y_cam) = mouseevent_get_cx(&e);
-            MsgUMAP::MouseStartSelect(x_cam, y_cam)
+            MsgReduction::MouseStartSelect(x_cam, y_cam)
         });
 
-        let onmouseup = ctx.link().callback(move |e: MouseEvent | { 
+        let cb_onmouseup = ctx.link().callback(move |e: MouseEvent | { 
             e.prevent_default();
             let (x_cam, y_cam) = mouseevent_get_cx(&e);
-            MsgUMAP::MouseEndSelect(x_cam, y_cam)
+            MsgReduction::MouseEndSelect(x_cam, y_cam)
         });
 
-        
-    
-        fn tool_style(pos: usize, selected: bool) -> String {
-            let c=if selected {"#0099FF"} else {"lightgray"};
-            format!("position: absolute; left:{}px; top:10px; display: flex; border-radius: 3px; border: 2px solid gray; padding: 5px; background-color: {};", pos, c)
-        }
-
-
-
-        // Render selection box
+        // Render box representing current selection
         let html_select = if let Some(rect) = &self.current_selection {
 
             let (x1,x2) = rect.range_x();
@@ -453,17 +432,14 @@ impl Component for UmapView {
             html! {""}
         };
 
-
+        //Compute current canvas size. Not automatic via CSS
         let window = window().expect("no window");//.document().expect("no document on window");
-
         let _window_h = window.inner_height().expect("failed to get height").as_f64().unwrap();
         let window_w = window.inner_width().expect("failed to get width").as_f64().unwrap();
-
-        //TODO: add resize event to window. highest level?
-
         let canvas_w = (window_w*0.59) as usize;
         let canvas_h = 500 as usize; //(window_h*0.59) as usize;
 
+        //Compose the view
         html! {
             <div style="display: flex; height: 500px; position: relative;">
 
@@ -471,7 +447,7 @@ impl Component for UmapView {
                     <canvas 
                         ref={self.node_ref.clone()} 
                         style="border:1px solid #000000;"
-                        onmousemove={mousemoved} onclick={mouseclicked} onwheel={mousewheel} onmousedown={onmousedown} onmouseup={onmouseup}
+                        onmousemove={cb_mousemoved} onclick={cb_mouseclicked} onwheel={cb_mousewheel} onmousedown={cb_onmousedown} onmouseup={cb_onmouseup}
                         width={format!{"{}", canvas_w}}
                         height={format!{"{}", canvas_h}}
                     />
@@ -485,17 +461,17 @@ impl Component for UmapView {
                 </div>
                 
                 // Button: Select
-                <div style={tool_style(canvas_w-40, self.current_tool==CurrentTool::Select)} onclick={click_select}>
+                <div style={get_tool_style(canvas_w-40, self.current_tool==CurrentTool::Select)} onclick={cb_click_select}>
                     <svg data-icon="polygon-filter" height="16" role="img" viewBox="0 0 16 16" width="16"><path d="M14 5c-.24 0-.47.05-.68.13L9.97 2.34c.01-.11.03-.22.03-.34 0-1.1-.9-2-2-2S6 .9 6 2c0 .04.01.08.01.12L2.88 4.21C2.61 4.08 2.32 4 2 4 .9 4 0 4.9 0 6c0 .74.4 1.38 1 1.72v4.55c-.6.35-1 .99-1 1.73 0 1.1.9 2 2 2 .74 0 1.38-.4 1.72-1h4.55c.35.6.98 1 1.72 1 1.1 0 2-.9 2-2 0-.37-.11-.7-.28-1L14 9c1.11-.01 2-.9 2-2s-.9-2-2-2zm-4.01 7c-.73 0-1.37.41-1.71 1H3.73c-.18-.3-.43-.55-.73-.72V7.72c.6-.34 1-.98 1-1.72 0-.04-.01-.08-.01-.12l3.13-2.09c.27.13.56.21.88.21.24 0 .47-.05.68-.13l3.35 2.79c-.01.11-.03.22-.03.34 0 .37.11.7.28 1l-2.29 4z" fill-rule="evenodd"></path></svg>
                 </div>
 
                 // Button: Zoom
-                <div style={tool_style(canvas_w-40-30, self.current_tool==CurrentTool::Zoom)} onclick={click_zoom}>
+                <div style={get_tool_style(canvas_w-40-30, self.current_tool==CurrentTool::Zoom)} onclick={cb_click_zoom}>
                     <svg data-icon="zoom-in" height="16" role="img" viewBox="0 0 16 16" width="16"><path d="M7.99 5.99v-2c0-.55-.45-1-1-1s-1 .45-1 1v2h-2c-.55 0-1 .45-1 1s.45 1 1 1h2v2c0 .55.45 1 1 1s1-.45 1-1v-2h2c.55 0 1-.45 1-1s-.45-1-1-1h-2zm7.56 7.44l-2.67-2.68a6.94 6.94 0 001.11-3.76c0-3.87-3.13-7-7-7s-7 3.13-7 7 3.13 7 7 7c1.39 0 2.68-.42 3.76-1.11l2.68 2.67a1.498 1.498 0 102.12-2.12zm-8.56-1.44c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z" fill-rule="evenodd"></path></svg>
                 </div>
 
                 // Button: Zoom all
-                <div style={tool_style(canvas_w-40-30-30, self.current_tool==CurrentTool::ZoomAll)} onclick={click_zoomall}>
+                <div style={get_tool_style(canvas_w-40-30-30, self.current_tool==CurrentTool::ZoomAll)} onclick={cb_click_zoomall}>
                     <svg data-icon="zoom-in" height="16" width="16" xmlns="http://www.w3.org/2000/svg"><path style="fill:none;stroke:#000;stroke-width:2.01074px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" d="M14.733 8.764v5.973H9.586m-8.29-5.973v5.973h5.146m8.29-7.5V1.264H9.587m-8.29 5.973V1.264h5.146"/></svg>
                 </div>
 
@@ -509,15 +485,15 @@ impl Component for UmapView {
     /// Called after DOM has been created
     fn rendered(&mut self, ctx: &Context<Self>, _first_render: bool) {
 
-        let prop_umap = &ctx.props().umap;
+        let reduction_data = &ctx.props().reduction_data;
 
-        if let AsyncData::Loaded(umap) = prop_umap {
+        if let AsyncData::Loaded(datapoints) = reduction_data {
 
             //Fit camera whenever we get a new umap to show
-            if self.last_umap != *prop_umap {
-                self.camera.fit_umap(umap);
+            if self.last_reduction_data != *reduction_data {
+                self.camera.fit_reduction(datapoints);
             }
-            self.last_umap = prop_umap.clone();
+            self.last_reduction_data = reduction_data.clone();
 
 
             // Only start the render loop if it's the first render
@@ -550,8 +526,8 @@ impl Component for UmapView {
             let frag_code = include_str!("./umap.frag");
 
             //Get position data
-            let num_points = umap.num_point;
-            let vertices = &umap.data;    
+            let num_points = datapoints.num_point;
+            let vertices = &datapoints.data;    
             let mut vec_vertex:Vec<f32> = Vec::new();
 
             let vec_vertex_size = 6;
@@ -567,8 +543,8 @@ impl Component for UmapView {
             }
 
             //Get color data
-            let color_umap_by = &ctx.props().color_umap_by;
-            if let UmapColoringWithData::ByMeta(_name, color_data) = color_umap_by {
+            let color_reduction_by = &ctx.props().color_reduction_by;
+            if let ReductionColoringWithData::ByMeta(_name, color_data) = color_reduction_by {
                 if let AsyncData::Loaded(color_data) = color_data {
                     match color_data.as_ref() {
                         CountFileMetaColumnData::Categorical(vec_data, vec_cats) => {
@@ -696,40 +672,6 @@ impl Component for UmapView {
 
 
 ////////////////////////////////////////////////////////////
-/// Convert RGB to HSV, 0-1 range, made to match GLSL version exactly
-pub fn hsv2rgb(c: Vec3) -> Vec3 {
-
-    //fract(x) = x - floor(x)
-
-    //mix(x,y,a)
-    //x×(1−a)+y×a
-    fn mix(x:f32,y:f32,a:f32) -> f32 {
-        x*(1.0-a) + y*a
-    }
-
-    //clamp(x, min,max)
-    //min(max(x, minVal), maxVal)
-    fn clamp(x:f32, minval:f32, maxval:f32) -> f32 {
-        (x.max(minval)).min(maxval)        
-    }
-
-    //vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-    let k: Vec4 = (1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-
-    //vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-    let p0 = ((c.0 + k.0).fract()*6.0 - k.3).abs();
-    let p1 = ((c.0 + k.1).fract()*6.0 - k.3).abs();
-    let p2 = ((c.0 + k.2).fract()*6.0 - k.3).abs();
-
-    //return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-    let out0 = c.2 * mix(k.0, clamp( p0 - k.0, 0.0, 1.0), c.1);
-    let out1 = c.2 * mix(k.0, clamp( p1 - k.0, 0.0, 1.0), c.1);
-    let out2 = c.2 * mix(k.0, clamp( p2 - k.0, 0.0, 1.0), c.1);
-    (out0, out1, out2)
-}
-
-
-////////////////////////////////////////////////////////////
 /// Convert from vector to HTML color code
 pub fn rgbvec2string(c: Vec3) -> String {
     let red=(c.0*255.0) as u8;
@@ -808,9 +750,18 @@ pub fn parse_palette(csv_colors:&str) -> Vec<(f32,f32,f32)> {
 }
 
 
-
+////////////////////////////////////////////////////////////
+/// Get palette suitable for the given categories
 pub fn get_palette_for_cats(_num_cats: usize) -> Vec<Color3f> {
 //    let palette = self.color_dict.get("default").unwrap();
     let pal = parse_palette(include_str!("./palette.csv"));
     pal
+}
+
+
+////////////////////////////////////////////////////////////
+/// Get the style of a tool button
+fn get_tool_style(pos: usize, selected: bool) -> String {
+    let c=if selected {"#0099FF"} else {"lightgray"};
+    format!("position: absolute; left:{}px; top:10px; display: flex; border-radius: 3px; border: 2px solid gray; padding: 5px; background-color: {};", pos, c)
 }

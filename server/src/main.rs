@@ -24,20 +24,16 @@ pub struct ServerData {
     bdir: BascetDir
 }
 
-
 ////////////////////////////////////////////////////////////
-/// 
+/// Config file for the backend
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ConfigFile {
     bind: String,
 }
 
 
-
-
-
 ////////////////////////////////////////////////////////////
-/// REST entry point
+/// REST entry point: Get feature counts for a given cell
 #[post("/get_featurecounts")]
 async fn get_featurecounts(server_data: Data<Mutex<ServerData>>, req_body: web::Json<ClusterRequest>) -> Result<HttpResponse, MyError> { 
 
@@ -53,12 +49,8 @@ async fn get_featurecounts(server_data: Data<Mutex<ServerData>>, req_body: web::
         .body(ser_out))
 }
 
-
-
-
-
 ////////////////////////////////////////////////////////////
-/// REST entry point
+/// REST entry point: Get coordinates for a reduction
 #[post("/get_reduction")]
 async fn get_reduction(server_data: Data<Mutex<ServerData>>, req_body: web::Json<ReductionRequest>) -> Result<HttpResponse, MyError> { 
 
@@ -74,11 +66,8 @@ async fn get_reduction(server_data: Data<Mutex<ServerData>>, req_body: web::Json
         .body(ser_out))
 }
 
-
-
-
 ////////////////////////////////////////////////////////////
-/// REST entry point
+/// REST entry point: Get a metadata column
 #[post("/get_metacolumn")]
 async fn get_metacolumn(server_data: Data<Mutex<ServerData>>, req_body: web::Json<MetadataColumnRequest>) -> Result<HttpResponse, MyError> { 
 
@@ -93,11 +82,6 @@ async fn get_metacolumn(server_data: Data<Mutex<ServerData>>, req_body: web::Jso
         .content_type(ContentType::octet_stream())
         .body(ser_out))
 }
-
-
-
-
-
 
 ////////////////////////////////////////////////////////////
 /// REST entry point
@@ -117,7 +101,6 @@ async fn get_dataset_desc(server_data: Data<Mutex<ServerData>>, req_body: web::J
 }
 
 
-
 ////////////////////////////////////////////////////////////
 /// Backend entry point
 #[actix_web::main]
@@ -130,7 +113,6 @@ async fn main() -> std::io::Result<()> {
     let f_meta = File::open("config.json").expect("Could not open config.json");
     let config_reader = BufReader::new(f_meta);
     let config_file:ConfigFile = serde_json::from_reader(config_reader).expect("Could not open config file");
-
 
     let bascet_dir = Path::new("testdata");
 
@@ -160,4 +142,3 @@ async fn main() -> std::io::Result<()> {
     .run()
     .await
 }
-

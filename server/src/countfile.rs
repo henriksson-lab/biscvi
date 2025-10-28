@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::{collections::HashMap, path::PathBuf};
 use hdf5::File;
 //use ndarray::{arr2, s};
@@ -6,7 +5,6 @@ use hdf5::File;
 use my_web_app::countfile_struct::CountFileMat;
 use my_web_app::countfile_struct::CountFileMetaColumnDesc;
 use my_web_app::countfile_struct::CountFileRed;
-use my_web_app::ClusterResponse;
 use my_web_app::CountFileMetaColumnData;
 use my_web_app::DatasetDescResponse;
 use my_web_app::MetadataColumnResponse;
@@ -14,16 +12,11 @@ use my_web_app::ReductionResponse;
 
 use ndarray::Axis;
 
-
 use anyhow::Context;
 
 
-
-
-
-
 ////////////////////////////////////////////////////////////
-/// 
+/// Reader of an HDF5 file, with a format similar to anndata
 pub struct CountFile {
     pub file: File,
     pub matrices: HashMap<String, CountFileMat>,
@@ -34,25 +27,19 @@ impl CountFile {
 
 
     ////////////////////////////////////////////////////////////
-    /// 
+    /// Retrieve all feature counts for a given cell
     pub fn get_counts_for_cell(&self, count_name: &String, row: u32) -> anyhow::Result<MetadataColumnResponse> {
-        //H5T_IEEE_F64LE
-
-        //ClusterResponse
-        
 
         let group_counts = self.file.group("/counts")?; 
         let group_cnt = group_counts.group(&count_name)?;
 
-        let cnt = self.matrices.get(count_name.into()).context("0")?;//.ok_or("Could not get matrix")?; // .expect("could not get matrix");  // D
+        let cnt = self.matrices.get(count_name.into()).context("err0")?;//.ok_or("Could not get matrix")?; // .expect("could not get matrix");  // D
 
-        let row_start = *cnt.list_indptr.get(row as usize).context("1")? as usize;
-        let row_end = *cnt.list_indptr.get(1 + row as usize).context("2")? as usize;
+        let row_start = *cnt.list_indptr.get(row as usize).context("err1")? as usize;
+        let row_end = *cnt.list_indptr.get(1 + row as usize).context("err2")? as usize;
 
         let df_data = group_cnt.dataset("data")?;
         let df_indices = group_cnt.dataset("indices")?;
-
-
         
         //Get column indices
         let ret_indices = df_indices.read_slice_1d::<u32, _>(
@@ -64,12 +51,6 @@ impl CountFile {
             row_start..row_end
         )?.iter().map(|x| *x).collect::<Vec<_>>();
 
-        /* 
-        let v = ClusterResponse {
-            indices: ret_indices,
-            data: ret_data
-        };*/
-
         let v = CountFileMetaColumnData::SparseNumeric(
             ret_indices,
             ret_data,
@@ -78,13 +59,12 @@ impl CountFile {
         Ok(MetadataColumnResponse {
             data: v
         })
-//        Ok(v)
     }
 
 
 
     ////////////////////////////////////////////////////////////
-    /// 
+    /// Read the reduction coordinates from the file
     pub fn get_reduction(&self, reduction_name: &String) -> anyhow::Result<ReductionResponse> {
 
         let group_counts = self.file.group("/reductions")?; 
@@ -109,13 +89,12 @@ impl CountFile {
             x,y
         };
         Ok(out)
-
     }
 
 
 
     ////////////////////////////////////////////////////////////
-    /// 
+    /// Get all values for a metadata column
     pub fn get_metacolumn(&self, column_name: &String) -> anyhow::Result<MetadataColumnResponse> {
 
         let group_meta = self.file.group("/obs")?; 
@@ -139,7 +118,7 @@ impl CountFile {
                 let group_thiscol = group_meta.group(&column_name)?;
 
                 let df_thiscol = group_thiscol.dataset("codes")?;
-                let data = read_hdf5_intvec(&df_thiscol)?;                
+                let data = read_hdf5_u32vec(&df_thiscol)?;                
 
                 let out = MetadataColumnResponse {
                     data: CountFileMetaColumnData::Categorical(data, cats.clone())
@@ -152,7 +131,7 @@ impl CountFile {
 
 
     ////////////////////////////////////////////////////////////
-    /// 
+    /// Get a description of the dataset
     pub fn get_desc(&self) -> anyhow::Result<DatasetDescResponse> {
         Ok(DatasetDescResponse {
             matrices: self.matrices.clone(),
@@ -170,8 +149,8 @@ impl CountFile {
 
 
 ////////////////////////////////////////////////////////////
-/// 
-pub fn prepare_countfile(p: &PathBuf) -> anyhow::Result<CountFile> {
+/// Read a count file and figure out the contents for later rapid response
+pub fn index_countfile(p: &PathBuf) -> anyhow::Result<CountFile> {
 
     println!("======== parsing count file ========");
     
@@ -192,7 +171,7 @@ pub fn prepare_countfile(p: &PathBuf) -> anyhow::Result<CountFile> {
         // ./indptr -- read right away, as it speeds up lookups later
         // ./feature_names -- read right away, to enable searching for user
 
-        let list_indptr = read_hdf5_intvec(&cnt.dataset("indptr")?)?;
+        let list_indptr = read_hdf5_u32vec(&cnt.dataset("indptr")?)?;
         let list_feature_names = read_hdf5_stringvec(&cnt.dataset("feature_names")?)?;
 
         let c = CountFileMat {
@@ -232,7 +211,6 @@ pub fn prepare_countfile(p: &PathBuf) -> anyhow::Result<CountFile> {
     let meta_names = group_meta.member_names()?;
     println!("Indexing Metadata columns {:?}", meta_names);
     for meta_name in meta_names {
-//        let group_thismeta = group_meta.group(&meta_name)?;
         let ds_thismeta = group_meta.dataset(&meta_name);
 
         let desc = if let Ok(_ds_thismeta) = ds_thismeta {
@@ -247,9 +225,7 @@ pub fn prepare_countfile(p: &PathBuf) -> anyhow::Result<CountFile> {
 
         println!("Meta column {} --- {:?}", meta_name, desc);
         map_meta.insert(meta_name.clone(), desc);
-
     }
-
 
     println!("======== parsing count file DONE ========");
 
@@ -264,13 +240,8 @@ pub fn prepare_countfile(p: &PathBuf) -> anyhow::Result<CountFile> {
 
 
 ////////////////////////////////////////////////////////////
-/// 
+/// Read a HDF5 string vector
 pub fn read_hdf5_stringvec(ds: &hdf5::Dataset) -> anyhow::Result<Vec<String>>{
-
-    //let t = ds.dtype()?;
-    //println!("{:?}", t.to_descriptor()?);
-    //println!("{:?}", ds.shape());
-
     let v = ds.
         read_1d::<hdf5::types::VarLenAscii>()?;
     let v = v.
@@ -282,23 +253,18 @@ pub fn read_hdf5_stringvec(ds: &hdf5::Dataset) -> anyhow::Result<Vec<String>>{
 
 
 ////////////////////////////////////////////////////////////
-/// 
-pub fn read_hdf5_intvec(ds: &hdf5::Dataset) -> anyhow::Result<Vec<u32>>{  // H5T_STD_I32LE
-
+/// Read a HDF5 u32 vector
+pub fn read_hdf5_u32vec(ds: &hdf5::Dataset) -> anyhow::Result<Vec<u32>>{  // H5T_STD_I32LE
     let v = ds.read_1d::<u32>()?;
     let out = v.iter().map(|x| *x).collect::<Vec<_>>();
-
-    //let out = v.iter().map(|s| s.to_string().clone()).collect::<Vec<_>>();
-
     Ok(out)
 }
 
 
 
 ////////////////////////////////////////////////////////////
-/// 
+/// Read a HDF5 f32 vector
 pub fn read_hdf5_f32vec(ds: &hdf5::Dataset) -> anyhow::Result<Vec<f32>>{  
-
     let v = ds.read_1d::<f32>()?;
     let out = v.iter().map(|x| *x).collect::<Vec<_>>();
     Ok(out)

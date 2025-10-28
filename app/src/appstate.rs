@@ -3,7 +3,7 @@ use my_web_app::CountFileMetaColumnData;
 
 use std::fmt;
 
-use crate::component_umap_main::UmapData;
+use crate::component_reduction_main::ReductionViewData;
 
 //TODO: Possibility of a struct, mapping int <-> cell. can share this
 
@@ -12,7 +12,7 @@ use crate::component_umap_main::UmapData;
 /// previously loaded data.
 pub struct BiscviData {
 
-    pub reductions: BTreeMap<String, AsyncData<UmapData>>,  //converted from ReductionResponse
+    pub reductions: BTreeMap<String, AsyncData<ReductionViewData>>,  //converted from ReductionResponse
     pub metadatas: HashMap<PerCellDataSource, AsyncData<CountFileMetaColumnData>>,
 
 }
@@ -30,7 +30,7 @@ impl BiscviData {
 
     ////////////////////////////////////////////////////////////
     /// Get a reduction, or empty if nothing if data is missing
-    pub fn get_reduction(&self, k: &String) -> AsyncData<UmapData> {
+    pub fn get_reduction(&self, k: &String) -> AsyncData<ReductionViewData> {
         let v = self.reductions.get(k);
         if let Some(v) = v {
             v.clone()
