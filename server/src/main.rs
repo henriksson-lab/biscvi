@@ -92,7 +92,6 @@ async fn get_metacolumn(server_data: Data<Mutex<ServerData>>, req_body: web::Jso
 async fn get_dataset_desc(server_data: Data<Mutex<ServerData>>, req_body: web::Json<DatasetDescRequest>) -> Result<HttpResponse, MyError> { 
 
     println!("get_dataset_desc {:?}",req_body);
-    //let Json(_req) = req_body;
 
     let server_data =server_data.lock().unwrap();
     let mat = server_data.bdir.counts.get_desc()?; 
@@ -117,7 +116,7 @@ async fn main() -> std::io::Result<()> {
     let config_reader = BufReader::new(f_meta);
     let config_file:ConfigFile = serde_json::from_reader(config_reader).expect("Could not open config file");
 
-    let bascet_dir = Path::new(&config_file.datadir);//"testdata");
+    let bascet_dir = Path::new(&config_file.datadir);
     let bdir = index_bascet_dir(&bascet_dir).expect("Failed to index data");
     
     let data = Data::new(Mutex::new(

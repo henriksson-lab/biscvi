@@ -79,17 +79,6 @@ impl Component for FeatureView {
                 ctx.props().on_colorbyfeature.emit(feature_name);
                 true
             },
-/* 
-            MsgFeature::AddSearchFeature(counts_name, feature_name) => {
-                //let counts_name = "RNA".to_string();
-                let feature_name: PerCellDataSource = PerCellDataSource::Counts(counts_name, feature_name);
-                //self.last_colorby=feature_name.clone();
-                //ctx.props().on_colorbyfeature.emit(feature_name);
-                log::debug!("adding features");
-                self.open_features.push(feature_name);
-                log::debug!("{:?}", self.open_features);
-                true
-            },*/
 
             //////// Key pressed in search feature input
             MsgFeature::FeatureSearchChange(value, is_enter) => {
