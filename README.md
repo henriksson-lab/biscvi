@@ -1,11 +1,14 @@
-# Webapp in Rust
+# Biscvi - The Bacterial Integrated Single-Cell VIewer
 
-Template for a web app completly in rust. The server is created with actix-web, the frontend with yew.
+## 🔖 Citation
 
-Put shared structs and functionality into the root crate, app or server specific stuff into the corresponding app or server crates.
+For now, you can cite [our preprint](https://www.biorxiv.org/content/10.1101/2025.06.20.660799v1)
 
-Run `cargo watch -w server -w src -x "run"` in the root folder of the repository to start the server and restart on changes. In another shel run `trunk watch` inside the app folder to rebuild the wasm code on changes.
+## Running as developer
 
-Features:
-- actix is setup to server the static files produced by trunk
-- a service worker for pwa functionality is included
+Start two terminals. In one, do `make 1`. In the other, do `make 2`
+
+## Deployment
+
+Run `make build`, then `make serve`
+
