@@ -7,7 +7,7 @@ use yew::{html, Callback, Component, Context, Html, MouseEvent, NodeRef};
 use yew::Properties;
 
 use crate::appstate::{AsyncData, PerCellDataSource};
-use crate::component_reduction_main::get_palette_for_cats;
+use crate::component_reduction_main::get_palette_for_categories;
 
 
 ////////////////////////////////////////////////////////////
@@ -118,7 +118,7 @@ impl Component for MetadataView {
 
                 //////////// Discrete category
                 if let CountFileMetaColumnDesc::Categorical(categories ) = meta_data {
-                    let palette = get_palette_for_cats(categories.len());
+                    let palette = get_palette_for_categories(categories.len());
 
                     //// Produce a list of all categories
                     let mut list_levels = Vec::new();

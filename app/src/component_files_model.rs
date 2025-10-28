@@ -11,19 +11,12 @@ impl Model {
         html! {
             <div>
                 <div class="biscvi-dimred-maindiv">
-                    {"UMAP here"}
+                    {"File viewer here"}
                 </div>
                 <div class="biscvi-dimred-leftdiv">
                     <div>
-                        {"Color by category here"}
+                        {"File list"}
                     </div>
-                    <div>
-                        {"Histogram of category?"}                        
-                    </div>
-                </div>
-                <div class="biscvi-dimred-rightdiv">
-                    {"Genes:"}
-                    <input type="text"/>
                 </div>
             </div>
         }

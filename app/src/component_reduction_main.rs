@@ -42,7 +42,7 @@ pub enum ReductionColoring {
 
 ////////////////////////////////////////////////////////////
 /// Coloring of the reduction
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum ReductionColoringWithData {
     None,
     ByMeta(PerCellDataSource, AsyncData<CountFileMetaColumnData>), //////////// this datastructure is not really needed => option
@@ -533,8 +533,9 @@ impl Component for ReductionView {
             let vec_vertex_size = 6;
             vec_vertex.reserve(num_points*6);  //Size of vec3+vec3
             for i in 0..num_points {
-                vec_vertex.push(*vertices.get(i*2+0).unwrap());
-                vec_vertex.push(*vertices.get(i*2+1).unwrap());
+                let input_base = i*2;
+                vec_vertex.push(*vertices.get(input_base+0).unwrap());
+                vec_vertex.push(*vertices.get(input_base+1).unwrap());
                 vec_vertex.push(0.0); // only used for 3d reductions
 
                 vec_vertex.push(0.0); ///////////////////////////////////////////////// color index. remove, put in separate buffer
@@ -544,48 +545,56 @@ impl Component for ReductionView {
 
             //Get color data
             let color_reduction_by = &ctx.props().color_reduction_by;
+            log::debug!("Rendering {:?}",color_reduction_by);
             if let ReductionColoringWithData::ByMeta(_name, color_data) = color_reduction_by {
                 if let AsyncData::Loaded(color_data) = color_data {
                     match color_data.as_ref() {
+
+                        ///////// Color by categorical data
                         CountFileMetaColumnData::Categorical(vec_data, vec_cats) => {
                             //log::debug!("Making colors for category");
                             
                             //let palette = self.color_dict.get("default").unwrap();
-                            let palette = get_palette_for_cats(vec_cats.len());
+                            let palette = get_palette_for_categories(vec_cats.len());
 
                             for (i,p) in vec_data.iter().enumerate() {
                                 let col = palette.get((*p as usize) % palette.len()).unwrap();
-                                vec_vertex[vec_vertex_size*i + 3] = col.0;
-                                vec_vertex[vec_vertex_size*i + 4] = col.1;
-                                vec_vertex[vec_vertex_size*i + 5] = col.2;
+                                let base = vec_vertex_size*i;
+                                vec_vertex[base + 3] = col.0;
+                                vec_vertex[base + 4] = col.1;
+                                vec_vertex[base + 5] = col.2;
 
                             }
 
                         },
+
+                        ///////// Color by numerical data - plain array
                         CountFileMetaColumnData::Numeric(vec_data) => {
 
                             //Normalize color range. TODO should only need to do this once during loading
                             let (_min_val, max_val) = make_safe_minmax(&vec_data);
 
                             for (i,p) in vec_data.into_iter().enumerate() {
-                                //RGB
-                                vec_vertex[vec_vertex_size*i + 3] = p/max_val;
-                                vec_vertex[vec_vertex_size*i + 4] = 0.0;
-                                vec_vertex[vec_vertex_size*i + 5] = 0.0;
+                                let base = vec_vertex_size*i;
+                                vec_vertex[base + 3] = p/max_val;
+                                vec_vertex[base + 4] = 0.0;
+                                vec_vertex[base + 5] = 0.0;
                             }
                         },
 
+                        ///////// Color by numerical data - sparse array
                         CountFileMetaColumnData::SparseNumeric(vec_index, vec_data) => {
 
-                            //Normalize color range. TODO should only need to do this once during loading
-                            let (_min_val, max_val) = make_safe_minmax(&vec_data);
+                            //Normalize color range. TODO should only need to do this once during loading. note, for sparse, min_val should be 0 by definition, more or less
+                            let (min_val, max_val) = make_safe_minmax(&vec_data);
+                            log::debug!("Render value range {} {}",min_val, max_val);
 
                             for (i,p) in vec_index.iter().zip(vec_data.iter()) {
                                 let i = *i as usize;
-                                //RGB
-                                vec_vertex[vec_vertex_size*i + 3] = p/max_val;
-                                vec_vertex[vec_vertex_size*i + 4] = 0.0;
-                                vec_vertex[vec_vertex_size*i + 5] = 0.0;
+                                let base = vec_vertex_size*i;
+                                vec_vertex[base + 3] = p/max_val;
+                                vec_vertex[base + 4] = 0.0;
+                                vec_vertex[base + 5] = 0.0;
                             }
                         },
                     }
@@ -707,7 +716,7 @@ fn mouseevent_get_cx(e: &MouseEvent) -> (f32,f32) {
 
 ////////////////////////////////////////////////////////////
 /// Read color RGB vector from html string to 0..255
-pub fn parse_rgb_int(s: &String) -> (i64, i64, i64) {
+pub fn parse_rgb_i64(s: &String) -> (i64, i64, i64) {
 
     let s = s.as_str();
     let s_r = s.get(1..3).expect("Could not get R");
@@ -726,7 +735,7 @@ pub fn parse_rgb_int(s: &String) -> (i64, i64, i64) {
 ////////////////////////////////////////////////////////////
 /// Read color RGB vector from html string to 0..1
 pub fn parse_rgb_f64(s: &String) -> (f32, f32, f32) {
-    let (r,g,b) = parse_rgb_int(s);
+    let (r,g,b) = parse_rgb_i64(s);
     (
         r as f32 / 255.0,
         g as f32 / 255.0,
@@ -752,7 +761,7 @@ pub fn parse_palette(csv_colors:&str) -> Vec<(f32,f32,f32)> {
 
 ////////////////////////////////////////////////////////////
 /// Get palette suitable for the given categories
-pub fn get_palette_for_cats(_num_cats: usize) -> Vec<Color3f> {
+pub fn get_palette_for_categories(_num_cats: usize) -> Vec<Color3f> {
 //    let palette = self.color_dict.get("default").unwrap();
     let pal = parse_palette(include_str!("./palette.csv"));
     pal

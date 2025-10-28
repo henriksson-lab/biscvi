@@ -33,7 +33,7 @@ pub struct ReductionResponse {
 ////////////////////////////////////////////////////////////      is this a bad name???
 /// 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ClusterRequest {
+pub struct FeatureCountsRequest {
     pub counts_name: String,
     pub row: u32,
 }

@@ -11,7 +11,7 @@ use actix_files::Files;
 use actix_web::http::header::ContentType;
 use actix_web::web::Json;
 use actix_web::{web, web::Data, App, HttpResponse, HttpServer, post};
-use my_web_app::{ClusterRequest, DatasetDescRequest, MetadataColumnRequest, ReductionRequest};
+use my_web_app::{FeatureCountsRequest, DatasetDescRequest, MetadataColumnRequest, ReductionRequest};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -35,14 +35,16 @@ pub struct ConfigFile {
 ////////////////////////////////////////////////////////////
 /// REST entry point: Get feature counts for a given cell
 #[post("/get_featurecounts")]
-async fn get_featurecounts(server_data: Data<Mutex<ServerData>>, req_body: web::Json<ClusterRequest>) -> Result<HttpResponse, MyError> { 
+async fn get_featurecounts(server_data: Data<Mutex<ServerData>>, req_body: web::Json<FeatureCountsRequest>) -> Result<HttpResponse, MyError> { 
 
-    println!("get_sequence {:?}",req_body);
+    println!("get_featurecounts {:?}",req_body);
     let Json(req) = req_body;
 
     let server_data =server_data.lock().unwrap();
     let mat = server_data.bdir.counts.get_counts_for_cell(&req.counts_name.into(), req.row)?;
     let ser_out = serde_cbor::to_vec(&mat)?;
+
+    println!("get_featurecounts response {:?}",mat);
 
     Ok(HttpResponse::Ok()
         .content_type(ContentType::octet_stream())

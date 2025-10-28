@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use my_web_app::ClusterRequest;
+use my_web_app::FeatureCountsRequest;
 use my_web_app::DatasetDescRequest;
 use my_web_app::DatasetDescResponse;
 use my_web_app::MetadataColumnRequest;
@@ -247,8 +247,9 @@ impl Component for Model {
                                     .bytes()
                                     .await
                                     .expect("Could not get binary data");
-                                //log::debug!("sent reduction request {:?}",res);
                                 let res: MetadataColumnResponse  = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
+
+                                log::debug!("got MetadataColumnRequest response {:?}",res);
 
                                 Msg::SetColorByMeta(name, Some(res))
                             };
@@ -257,7 +258,7 @@ impl Component for Model {
                         },
                         PerCellDataSource::Counts(counts_name, feature_name) => {
 
-                            let query = ClusterRequest {
+                            let query = FeatureCountsRequest {
                                 counts_name: counts_name.clone(),
                                 row: 0, // column_name.clone(),   feature_name
                             };
@@ -277,7 +278,7 @@ impl Component for Model {
                                     .expect("Could not get binary data");
                                 let res: MetadataColumnResponse  = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
 
-                                log::debug!("got response {:?}",res);
+                                log::debug!("got FeatureCountsRequest response {:?}",res);
 
                                 Msg::SetColorByMeta(name, Some(res))
                             };
@@ -328,9 +329,9 @@ impl Component for Model {
 
         let current_page = match self.current_page { 
             CurrentPage::Home => self.view_dimred_page(&ctx),
-            CurrentPage::GenomeBrowser => self.view_dimred_page(&ctx),
+            CurrentPage::GenomeBrowser => self.view_gbrowser_page(&ctx),
             CurrentPage::Files => self.view_files_page(&ctx),
-            CurrentPage::About => self.view_dimred_page(&ctx),
+            CurrentPage::About => self.view_about_page(&ctx),
         };
 
         fn active_if(cond: bool) -> String {
