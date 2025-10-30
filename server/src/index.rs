@@ -39,7 +39,7 @@ pub struct BascetDir { //TODO
 pub fn index_bascet_dir(bascet_dir: &Path) -> anyhow::Result<BascetDir> {
 
     let path_cf = bascet_dir.join("counts.biscvi5");
-    let cf = index_countfile(&path_cf)?; //"/home/mahogny/github/rbiscvi/counts.biscvi5".into()
+    let cf = index_countfile(&path_cf)?;
 
     let paths = std::fs::read_dir(bascet_dir).unwrap();
     for path in paths {
