@@ -12,8 +12,6 @@ use yew::Properties;
 
 use crate::appstate::{AsyncData, PerCellDataSource};
 
-use crate::appstate::BiscviData;
-
 ////////////////////////////////////////////////////////////
 /// Message sent to the event system for updating the page
 #[derive(Debug)]
@@ -57,7 +55,6 @@ impl Component for FeatureView {
     ////////////////////////////////////////////////////////////
     /// Create this component
     fn create(_ctx: &Context<Self>) -> Self {    
-        log::debug!("creating right controls");
         Self {
             node_ref: NodeRef::default(),
             expanded_meta: HashSet::new(),
@@ -130,8 +127,8 @@ impl Component for FeatureView {
         };
 
 
-        log::debug!("open features");
-        log::debug!("{:?}", self.open_features);
+        //log::debug!("open features");
+        //log::debug!("{:?}", self.open_features);
 
         //Create controls for all open features
         let mut list_features:Vec<Html> = Vec::new();
@@ -184,7 +181,7 @@ impl Component for FeatureView {
             e.prevent_default();
             let is_enter = e.key() == "Enter" || e.key_code() == 13;
             if is_enter {
-                log::debug!("got input");
+                //log::debug!("got input");
                 input.set_value(""); //empty it
             }
             MsgFeature::FeatureSearchChange(cur_value, is_enter)

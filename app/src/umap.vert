@@ -32,7 +32,7 @@ void main() {
     gl_Position = vec4(scaled.x, -scaled.y, 0.0, 1.0);   // Invert camera y to match 
 
     //Set size of points
-    gl_PointSize = 5.0;
+    gl_PointSize = 2.0;
 
     //Set color based on lookup. 99 colors
 //    color = vec3(0.0, 0.0, 0.0);

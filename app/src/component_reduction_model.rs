@@ -7,18 +7,6 @@ use crate::component_reduction_right::FeatureView;
 
 impl Model {
 
-    ////////////////////////////////////////////////////////////
-    /// Get the current coloring data
-    pub fn get_umap_coloring(&self) -> ReductionColoringWithData {
-        match &self.color_umap_by {
-            ReductionColoring::None => ReductionColoringWithData::None,
-            ReductionColoring::ByMeta(name) => {
-                let dat=self.current_data.lock().unwrap().get_metadata(&name);
-                ReductionColoringWithData::ByMeta(name.clone(), dat)
-            },
-        }
-    }
-
 
     ////////////////////////////////////////////////////////////
     /// x
@@ -34,17 +22,16 @@ impl Model {
 
         //Callback: coloring by something
         let on_colorbymeta= ctx.link().callback(move |name: PerCellDataSource| {
-            Msg::RequestSetColorByMeta(name)  // UmapColoring instead?
+            MsgCore::RequestSetColorByMeta(name)  // UmapColoring instead?
         });
 
-        //Get reduction
-        let mut current_umap_data = AsyncData::NotLoaded;
-        if let Some(current_reduction) = &self.current_reduction {
-            current_umap_data = self.current_data.lock().unwrap().get_reduction(current_reduction)
-        }
-
-        //Get current coloring data
-        let coloring_data = self.get_umap_coloring();
+        let on_propagate= ctx.link().callback(move |sig: MsgCore| {
+            log::debug!("propagate {:?}", sig);
+            sig
+        });
+         
+ //                 ctx.link().send_message(Msg::GetDatasetDesc());
+    //    self.current_datadesc
 
         html! {
             <div>
@@ -52,9 +39,13 @@ impl Model {
                     <ReductionView 
                         on_cell_hovered={on_cell_hovered} 
                         on_cell_clicked={on_cell_clicked} 
-                        reduction_data={current_umap_data} 
-                        color_reduction_by={coloring_data.clone()} 
+                        on_propagate={on_propagate}
                         last_component_size={self.last_component_size.clone()}
+                        current_colorby={self.current_colorby.clone()}
+                        reductions={self.reductions.clone()}
+                        metadatas={self.metadatas.clone()}
+                        current_datadesc={self.current_datadesc.clone()}
+                        current_reduction_name={self.current_reduction.clone()}
                     />
                 </div>
                 <MetadataView 

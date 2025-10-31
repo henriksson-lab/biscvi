@@ -1,6 +1,3 @@
-use std::sync::Arc;
-use std::sync::Mutex;
-
 use my_web_app::FeatureCountsRequest;
 use my_web_app::DatasetDescRequest;
 use my_web_app::DatasetDescResponse;
@@ -15,10 +12,11 @@ use yew::prelude::*;
 use bytes::Buf;
 
 use crate::appstate::AsyncData;
-use crate::appstate::BiscviData;
+use crate::appstate::BiscviCache;
+use crate::appstate::MetadataData;
 use crate::appstate::PerCellDataSource;
+use crate::appstate::ReductionData;
 use crate::component_reduction_main::convert_from_response_to_reduction_data;
-use crate::component_reduction_main::ReductionColoring;
 use crate::resize::ComponentSize;
 use crate::resize::ComponentSizeObserver;
 
@@ -37,7 +35,7 @@ pub enum CurrentPage {
 ////////////////////////////////////////////////////////////
 /// Message sent to the event system for updating the page
 #[derive(Debug)]
-pub enum Msg {
+pub enum MsgCore {
 
     OpenPage(CurrentPage),
 
@@ -65,14 +63,18 @@ pub struct Model {
     pub current_page: CurrentPage,
     pub current_reduction: Option<String>,              //should be state of a page; move later
     pub current_datadesc: AsyncData<DatasetDescResponse>,  //For now, makes sense to keep this here, as it is static. but risks becoming really large
-    pub current_data: Arc<Mutex<BiscviData>>,           //Has interior mutability. Yew will not be able to sense updates! Need to signal in other ways
-    pub color_umap_by: ReductionColoring, //// currently assumed   change this
+
+    // For count tables
+    pub reductions: BiscviCache<ReductionData>,        
+    pub metadatas: BiscviCache<MetadataData>,          // call something else? countdatas?
+
     pub current_colorby: PerCellDataSource,
-    pub last_component_size: ComponentSize
+    pub last_component_size: ComponentSize,
+
 }
 impl Component for Model {
 
-    type Message = Msg;
+    type Message = MsgCore;
     type Properties = ();
 
     ////////////////////////////////////////////////////////////
@@ -80,17 +82,14 @@ impl Component for Model {
     fn create(ctx: &Context<Self>) -> Self {
 
         //Get initial data to show
-        ctx.link().send_message(Msg::GetDatasetDesc());
-        ctx.link().send_message(Msg::GetReduction("kraken_umap".into()));
-
-        let current_data = Arc::new(Mutex::new(BiscviData::new()));
+        ctx.link().send_message(MsgCore::GetDatasetDesc());
 
         Self {
             current_page: CurrentPage::Home,
             current_reduction: None,
             current_datadesc: AsyncData::NotLoaded,
-            current_data: current_data,
-            color_umap_by: ReductionColoring::None,
+            reductions: BiscviCache::new(ReductionData::new()),
+            metadatas: BiscviCache::new(MetadataData::new()),
             last_component_size: ComponentSize { width: 100.0, height: 100.0 },
             current_colorby: PerCellDataSource::Metadata("".into()),
         }
@@ -107,13 +106,13 @@ impl Component for Model {
 
             ////////////////////////////////////////////////////////////
             // Message: Data changed, redraw
-            Msg::DataChanged => {
+            MsgCore::DataChanged => {
                 true
             },
 
             ////////////////////////////////////////////////////////////
             // Message: Open a given page
-            Msg::OpenPage(page) => {
+            MsgCore::OpenPage(page) => {
                 self.current_page = page;
                 true
             },
@@ -121,7 +120,7 @@ impl Component for Model {
 
             ////////////////////////////////////////////////////////////
             // Message: Get general dataset description
-            Msg::GetDatasetDesc() => {
+            MsgCore::GetDatasetDesc() => {
                 let query = DatasetDescRequest {
                 };
                 let query_json = serde_json::to_vec(&query).expect("Could not convert to json");
@@ -139,7 +138,7 @@ impl Component for Model {
                         .await
                         .expect("Could not get binary data");
                     let res = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
-                    Msg::SetDatasetDesc(res)
+                    MsgCore::SetDatasetDesc(res)
                 };
                 ctx.link().send_future(get_data);
                 false
@@ -147,7 +146,7 @@ impl Component for Model {
 
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
-            Msg::SetDatasetDesc(res) => {
+            MsgCore::SetDatasetDesc(res) => {
                 //log::debug!("got desc {:?}",res);
                 self.current_datadesc = AsyncData::new(res);
                 true
@@ -156,16 +155,15 @@ impl Component for Model {
 
             ////////////////////////////////////////////////////////////      ////////////////// call only when data needed?
             // Message: Get a given reduction
-            Msg::GetReduction(reduction_name) => {
+            MsgCore::GetReduction(reduction_name) => {
 
                 //Show new reduction
-                log::debug!("ask for reduction {:?}",reduction_name);
+                //log::debug!("GetReduction ask for reduction {:?}",reduction_name);
                 self.current_reduction = Some(reduction_name.clone());
 
                 //Insert a loading place holder until data received
-                let mut current_data = self.current_data.lock().unwrap();
-                current_data.reductions.insert(reduction_name.clone(), AsyncData::Loading);
-                log::debug!("for now added Loading reduction {:?}",reduction_name);
+                self.reductions = BiscviCache::new(self.reductions.data.insert(&reduction_name, AsyncData::Loading));
+                //log::debug!("for now added Loading reduction {:?}",reduction_name);
 
                 //Request data
                 let query = ReductionRequest {
@@ -186,7 +184,7 @@ impl Component for Model {
                         .expect("Could not get binary data");
                     //log::debug!("sent reduction request {:?}",res);
                     let res = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
-                    Msg::SetReduction(reduction_name, res)
+                    MsgCore::SetReduction(reduction_name, res)
                 };
                 ctx.link().send_future(get_data);
 
@@ -197,14 +195,12 @@ impl Component for Model {
 
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
-            Msg::SetReduction(reduction_name, res) => {
+            MsgCore::SetReduction(reduction_name, res) => {
                 //log::debug!("set reduction from server {} :: {:?}; this should trigger a refresh??",reduction_name, res);
-                log::debug!("set reduction from server {} ",reduction_name);
+                //log::debug!("set reduction from server {} ",reduction_name);
 
-                let mut current_data = self.current_data.lock().unwrap();
-                let umap_data = convert_from_response_to_reduction_data(res);
-                
-                current_data.reductions.insert(reduction_name, AsyncData::new(umap_data));
+                let new_reduction = convert_from_response_to_reduction_data(res);
+                self.reductions = BiscviCache::new(self.reductions.data.insert(&reduction_name, AsyncData::new(new_reduction)));
 
                 true
             },
@@ -212,15 +208,16 @@ impl Component for Model {
 
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
-            Msg::RequestSetColorByMeta(name) => {   //name??
+            MsgCore::RequestSetColorByMeta(name) => {   //name??
 
-                log::debug!("RequestSetColorByMeta {} ",name);
+                //log::debug!("RequestSetColorByMeta {} ",name);
 
-                let has_data = self.current_data.lock().unwrap().metadatas.contains_key(&name);
+//                let has_data = self.current_data.lock().unwrap().metadatas.contains_key(&name);
+                let has_data = self.metadatas.data.metadatas.contains_key(&name);
 
                 //For now, point to show new data. But we might not yet have it
                 self.current_colorby = name.clone();
-                ctx.link().send_message(Msg::SetColorByMeta(name.clone(), None));
+                ctx.link().send_message(MsgCore::SetColorByMeta(name.clone(), None));
 
                 //If needed, request data
                 if !has_data {
@@ -247,9 +244,9 @@ impl Component for Model {
                                     .expect("Could not get binary data");
                                 let res: MetadataColumnResponse  = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
 
-                                log::debug!("got MetadataColumnRequest response {:?}",res);
+                                //log::debug!("got MetadataColumnRequest response {:?}",res);
 
-                                Msg::SetColorByMeta(name, Some(res))
+                                MsgCore::SetColorByMeta(name, Some(res))
                             };
                             ctx.link().send_future(get_data);                            
 
@@ -276,40 +273,42 @@ impl Component for Model {
                                     .expect("Could not get binary data");
                                 let res: MetadataColumnResponse  = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
 
-                                log::debug!("got FeatureCountsRequest response {:?}",res);
+                                //log::debug!("got FeatureCountsRequest response {:?}",res);
 
-                                Msg::SetColorByMeta(name, Some(res))
+                                MsgCore::SetColorByMeta(name, Some(res))
                             };
                             ctx.link().send_future(get_data);
 
                         },
                     }
 
-
-                }
+                }                
                 false
             },
 
 
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
-            Msg::SetColorByMeta(name, res) => {  
+            MsgCore::SetColorByMeta(name, res) => {  
 
                 log::debug!("SetColorByMeta {} {:?}",name, res);
 
                 //Update data if needed
                 if let Some(res) = res {
-                    let mut current_data = self.current_data.lock().unwrap();
-                    current_data.metadatas.insert(name.clone(), AsyncData::new(res.data));
+//                    let mut current_data = self.current_data.lock().unwrap();
+  //                  current_data.metadatas.insert(name.clone(), AsyncData::new(res.data));
+
+                    self.metadatas = BiscviCache::new(self.metadatas.data.insert(&name, AsyncData::new(res.data)));
+
                 }
-                self.color_umap_by = ReductionColoring::ByMeta(name);  //TODO: could compare by pointer to force updates
+                //self.color_umap_by = ReductionColoring::ByMeta(name);  //TODO: could compare by pointer to force updates
                 true
             },
 
 
             ////////////////////////////////////////////////////////////
             // Message: Window is resized
-            Msg::WindowResize(size) => {  
+            MsgCore::WindowResize(size) => {  
                 self.last_component_size = size;
                 true
             }
@@ -345,7 +344,7 @@ impl Component for Model {
         // https://yew.rs/docs/next/concepts/html/events
 
         let onsize = ctx.link().callback(|size: ComponentSize| {
-            Msg::WindowResize(size)
+            MsgCore::WindowResize(size)
         });
 
         html! {
@@ -356,10 +355,10 @@ impl Component for Model {
                         {"Biscvi"}
                     </div>
 
-                    <a class={active_if(self.current_page==CurrentPage::About)}          onclick={ctx.link().callback(|_| Msg::OpenPage(CurrentPage::About))}>{"About"}</a> 
-                    <a class={active_if(self.current_page==CurrentPage::GenomeBrowser)}  onclick={ctx.link().callback(|_| Msg::OpenPage(CurrentPage::GenomeBrowser))}>{"Genome Browser"}</a> 
-                    <a class={active_if(self.current_page==CurrentPage::Files)}          onclick={ctx.link().callback(|_| Msg::OpenPage(CurrentPage::Files))}>{"Files"}</a> 
-                    <a class={active_if(self.current_page==CurrentPage::Home)}           onclick={ctx.link().callback(|_| Msg::OpenPage(CurrentPage::Home))}>{"Dimensional Reduction"}</a> 
+                    <a class={active_if(self.current_page==CurrentPage::About)}          onclick={ctx.link().callback(|_| MsgCore::OpenPage(CurrentPage::About))}>{"About"}</a> 
+                    <a class={active_if(self.current_page==CurrentPage::GenomeBrowser)}  onclick={ctx.link().callback(|_| MsgCore::OpenPage(CurrentPage::GenomeBrowser))}>{"Genome Browser"}</a> 
+                    <a class={active_if(self.current_page==CurrentPage::Files)}          onclick={ctx.link().callback(|_| MsgCore::OpenPage(CurrentPage::Files))}>{"Files"}</a> 
+                    <a class={active_if(self.current_page==CurrentPage::Home)}           onclick={ctx.link().callback(|_| MsgCore::OpenPage(CurrentPage::Home))}>{"Dimensional Reduction"}</a> 
 
                 </div>
                 { current_page }

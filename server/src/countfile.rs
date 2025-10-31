@@ -66,29 +66,31 @@ impl CountFile {
     ////////////////////////////////////////////////////////////
     /// Read the reduction coordinates from the file
     pub fn get_reduction(&self, reduction_name: &String) -> anyhow::Result<ReductionResponse> {
-
         let group_counts = self.file.group("/reductions")?; 
-        let df_thisred = group_counts.dataset(&reduction_name)?;
+        //let df_thisred = group_counts.dataset(&reduction_name)?;
+        if let Ok(df_thisred) = group_counts.dataset(&reduction_name) {
+            //Check that it is there. Need no further info right now
+            let _red = self.reductions.get(reduction_name.into()).context("0")?;
 
-        //Check that it is there. Need no further info right now
-        let _red = self.reductions.get(reduction_name.into()).context("0")?;
+            let my_array = df_thisred.read_2d::<f32>()?;
 
-        let my_array = df_thisred.read_2d::<f32>()?;
+            //println!("got {:?}",my_array);
 
-        //println!("got {:?}",my_array);
+            let subarray_x = my_array.select(Axis(0), &[0]);
+            let subarray_y = my_array.select(Axis(0), &[1]);
 
-        let subarray_x = my_array.select(Axis(0), &[0]);
-        let subarray_y = my_array.select(Axis(0), &[1]);
+            let x=subarray_x.iter().map(|x| *x).collect::<Vec<_>>();
+            let y=subarray_y.iter().map(|x| *x).collect::<Vec<_>>();
 
-        let x=subarray_x.iter().map(|x| *x).collect::<Vec<_>>();
-        let y=subarray_y.iter().map(|x| *x).collect::<Vec<_>>();
+            //println!("got {:?}",x);
 
-        //println!("got {:?}",x);
-
-        let out = ReductionResponse {
-            x,y
-        };
-        Ok(out)
+            let out = ReductionResponse {
+                x,y
+            };
+            Ok(out)
+        } else {
+            anyhow::bail!(format!("Failed to find reduction {}", reduction_name))
+        }
     }
 
 
@@ -100,33 +102,36 @@ impl CountFile {
         let group_meta = self.file.group("/obs")?; 
 
         //Check that it is there. Need no further info right now
-        let red = self.meta.get(column_name.into()).context("0")?;
+        if let Some(red) = self.meta.get(column_name.into()) {
 
-        match red {
-            CountFileMetaColumnDesc::Numeric() => {
+            match red {
+                CountFileMetaColumnDesc::Numeric() => {
 
-                let df_thiscol = group_meta.dataset(&column_name)?;
-                let data = read_hdf5_f32vec(&df_thiscol)?;                
+                    let df_thiscol = group_meta.dataset(&column_name)?;
+                    let data = read_hdf5_f32vec(&df_thiscol)?;                
 
-                let out = MetadataColumnResponse {
-                    data: CountFileMetaColumnData::Numeric(data)
-                };
-                Ok(out)                
-            },
-            CountFileMetaColumnDesc::Categorical(cats) => {
+                    let out = MetadataColumnResponse {
+                        data: CountFileMetaColumnData::Numeric(data)
+                    };
+                    Ok(out)                
+                },
+                CountFileMetaColumnDesc::Categorical(cats) => {
 
-                let group_thiscol = group_meta.group(&column_name)?;
+                    let group_thiscol = group_meta.group(&column_name)?;
 
-                let df_thiscol = group_thiscol.dataset("codes")?;
-                let data = read_hdf5_u32vec(&df_thiscol)?;                
+                    let df_thiscol = group_thiscol.dataset("codes")?;
+                    let data = read_hdf5_u32vec(&df_thiscol)?;                
 
-                let out = MetadataColumnResponse {
-                    data: CountFileMetaColumnData::Categorical(data, cats.clone())
-                };
-                Ok(out)                
-            }
+                    let out = MetadataColumnResponse {
+                        data: CountFileMetaColumnData::Categorical(data, cats.clone())
+                    };
+                    Ok(out)                
+                }
+            }            
+
+        } else {
+            anyhow::bail!(format!("Failed to find metadata column {}", column_name))
         }
-
     }    
 
 

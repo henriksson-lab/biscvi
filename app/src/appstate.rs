@@ -7,47 +7,138 @@ use crate::component_reduction_main::ReductionViewData;
 
 //TODO: Possibility of a struct, mapping int <-> cell. can share this
 
+
 ////////////////////////////////////////////////////////////
 /// Data loaded into Biscvi. This is effectively a cache of 
 /// previously loaded data.
-pub struct BiscviData {
-
-    pub reductions: BTreeMap<String, AsyncData<ReductionViewData>>,  //converted from ReductionResponse
-    pub metadatas: HashMap<PerCellDataSource, AsyncData<CountFileMetaColumnData>>,
-
+pub struct BiscviCache<T> {
+    pub data: Arc<T>
 }
-impl BiscviData {
-
+impl<T> BiscviCache<T> {
 
     ////////////////////////////////////////////////////////////
-    /// Contructor of initial Biscvi state
-    pub fn new() -> BiscviData {
-        BiscviData {
+    /// Contructor
+    pub fn new(d: T) -> BiscviCache<T> {
+        BiscviCache {
+            data: Arc::new(d)
+        }
+    }
+
+}
+
+////////////////////////////////////////////////////////////
+/// For yew - AsyncData is "equal" if pointers are the same. Otherwise assume the data changed.
+/// This speeds up comparison
+impl<T> PartialEq for BiscviCache<T> {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.data, &other.data)
+    }
+}
+
+////////////////////////////////////////////////////////////
+/// Ensure cloning just clones the Arc;
+/// derive(Clone) adds overly restrictive requirements on T
+impl<T> Clone for BiscviCache<T> {
+    fn clone(&self) -> Self {
+        BiscviCache {
+            data: Arc::clone(&self.data)
+        }        
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+////////////////////////////////////////////////////////////
+/// Data loaded into Biscvi. This is effectively a cache of 
+/// previously loaded data.
+pub struct ReductionData {
+    pub reductions: BTreeMap<String, AsyncData<ReductionViewData>>,  //converted from ReductionResponse
+}
+impl ReductionData {
+
+    ////////////////////////////////////////////////////////////
+    /// Contructor
+    pub fn new() -> ReductionData {
+        ReductionData {
             reductions: BTreeMap::new(),
-            metadatas: HashMap::new(),
         }
     }
 
     ////////////////////////////////////////////////////////////
     /// Get a reduction, or empty if nothing if data is missing
-    pub fn get_reduction(&self, k: &String) -> AsyncData<ReductionViewData> {
+    pub fn get(&self, k: &String) -> AsyncData<ReductionViewData> {
         let v = self.reductions.get(k);
         if let Some(v) = v {
             v.clone()
         } else {
             AsyncData::NotLoaded
         }
+    }    
+
+    ////////////////////////////////////////////////////////////
+    /// Insert new entry, return new datas structure
+    pub fn insert(&self, k: &String, value: AsyncData<ReductionViewData>) -> ReductionData {
+        let mut newself =  ReductionData {
+            reductions: self.reductions.clone()
+        };
+        newself.reductions.insert(k.clone(), value);
+        newself
+    }
+
+}
+
+
+
+
+
+
+
+
+////////////////////////////////////////////////////////////
+/// Data loaded into Biscvi. This is effectively a cache of 
+/// previously loaded data.
+pub struct MetadataData {
+    pub metadatas: HashMap<PerCellDataSource, AsyncData<CountFileMetaColumnData>>,
+}
+impl MetadataData {
+    ////////////////////////////////////////////////////////////
+    /// Contructor of initial Biscvi state
+    pub fn new() -> MetadataData {
+        MetadataData {
+            metadatas: HashMap::new(),
+        }
     }
 
     ////////////////////////////////////////////////////////////
     /// Get metadata or feature counts for a given cell
-    pub fn get_metadata(&self, k: &PerCellDataSource) -> AsyncData<CountFileMetaColumnData> {
+    pub fn get(&self, k: &PerCellDataSource) -> AsyncData<CountFileMetaColumnData> {
         let v = self.metadatas.get(k);
         if let Some(v) = v {
             v.clone()
         } else {
             AsyncData::NotLoaded
         }
+    }
+
+    ////////////////////////////////////////////////////////////
+    /// Insert new entry, return new datas structure
+    pub fn insert(&self, k: &PerCellDataSource, value: AsyncData<CountFileMetaColumnData>) -> MetadataData {
+        let mut newself =  MetadataData {
+            metadatas: self.metadatas.clone()
+        };
+        newself.metadatas.insert(k.clone(), value);
+        newself
     }
 
 }

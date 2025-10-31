@@ -3,19 +3,26 @@ use std::io::Cursor;
 use std::io::BufReader;
 
 use my_web_app::CountFileMetaColumnData;
+use my_web_app::DatasetDescResponse;
 use my_web_app::ReductionResponse;
 use serde::Deserialize;
 use serde::Serialize;
 use wasm_bindgen::JsCast;
+use web_sys::HtmlSelectElement;
 use web_sys::window;
 use web_sys::{DomRect, EventTarget, HtmlCanvasElement, WebGlRenderingContext as GL};
+use yew::Event;
 use yew::{html, Callback, Component, Context, Html, MouseEvent, NodeRef, WheelEvent};
 use yew::Properties;
 
 use crate::appstate::AsyncData;
+use crate::appstate::BiscviCache;
+use crate::appstate::MetadataData;
 use crate::appstate::PerCellDataSource;
+use crate::appstate::ReductionData;
 use crate::camera::Camera2D;
 use crate::camera::Rectangle2D;
+use crate::core_model::MsgCore;
 use crate::histogram::make_safe_minmax;
 use crate::resize::ComponentSize;
 use crate::closestpoint::ClosestPointIndex2D;
@@ -144,6 +151,7 @@ pub enum MsgReduction {
     MouseStartSelect(f32,f32),
     MouseEndSelect(f32,f32),
     SelectCurrentTool(CurrentTool),
+    Propagate(MsgCore),
 }
 
 
@@ -153,9 +161,17 @@ pub enum MsgReduction {
 pub struct Props {
     pub on_cell_hovered: Callback<Option<usize>>,
     pub on_cell_clicked: Callback<Vec<usize>>,
-    pub reduction_data: AsyncData<ReductionViewData>, 
-    pub color_reduction_by: ReductionColoringWithData,
+    pub on_propagate: Callback<MsgCore>,
+
     pub last_component_size: ComponentSize,
+    pub current_datadesc: AsyncData<DatasetDescResponse>,
+    pub current_colorby: PerCellDataSource,
+
+    // For count tables
+    pub reductions: BiscviCache<ReductionData>,        
+    pub metadatas: BiscviCache<MetadataData>,          // call something else? countdatas?
+
+    pub current_reduction_name: Option<String>,
 
 }
 
@@ -171,6 +187,12 @@ pub struct ReductionView {
     camera: Camera2D,
     current_selection: Option<Rectangle2D>,
     last_reduction_data: AsyncData<ReductionViewData>,
+
+
+
+
+    //histogram cache here
+
 }
 
 impl Component for ReductionView {
@@ -189,6 +211,7 @@ impl Component for ReductionView {
             camera: Camera2D::new(),
             current_selection: None,
             last_reduction_data: AsyncData::NotLoaded,
+            //current_reduction_name: "".to_string(),
         }
     }
 
@@ -197,6 +220,14 @@ impl Component for ReductionView {
     /// Handle an update message
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {            
+
+
+            ////////////////////////////////////////////////////////////
+            // Message: Porpagate data
+            MsgReduction::Propagate(msg) => {
+                ctx.props().on_propagate.emit(msg);
+                false
+            },
 
             ////////////////////////////////////////////////////////////
             // Message: Mouse has moved
@@ -274,11 +305,12 @@ impl Component for ReductionView {
             // Message: A tool has been selected
             MsgReduction::SelectCurrentTool(t) => {
 
-                let reduction_data = &ctx.props().reduction_data;
-
+                //Get reduction                
+                let reduction_data = get_current_reduction_data(ctx);// = ctx.props().reductions.data.get(&ctx.props().current_reduction_name);
+                
                 if t==CurrentTool::ZoomAll {
                     if let AsyncData::Loaded(reduction_data) = reduction_data {
-                        self.camera.fit_reduction(reduction_data);
+                        self.camera.fit_reduction(reduction_data.as_ref());
                     }
                 } else {
                     self.current_tool=t;
@@ -312,7 +344,7 @@ impl Component for ReductionView {
                     rect.x2=wx;
                     rect.y2=wy;
 
-                    let reduction_data = &ctx.props().reduction_data;
+                    let reduction_data = get_current_reduction_data(ctx);// = ctx.props().reductions.data.get(&ctx.props().current_reduction_name);
 
                     if let AsyncData::Loaded(reduction_data) = reduction_data {
 
@@ -364,6 +396,8 @@ impl Component for ReductionView {
     ////////////////////////////////////////////////////////////
     /// Render this component
     fn view(&self, ctx: &Context<Self>) -> Html {
+
+        log::debug!("render reduction main");
 
         let cb_mousemoved = ctx.link().callback(move |e: MouseEvent | { 
             e.prevent_default();
@@ -441,14 +475,59 @@ impl Component for ReductionView {
 
         //Figure out reduction to show
         let mut list_reductions = Vec::new();
-        list_reductions.push("RNA".to_string());
+//        list_reductions.push("RNA".to_string());
+        if let AsyncData::Loaded(data) = &ctx.props().current_datadesc {
+            for k in data.reductions.keys() {
+                list_reductions.push(k.clone());
+            }           
+        }
+
+        //If no reduction is selected, but now got options, update
+              
+
+        //// link to upstream somehow!!
+        //// ctx.link().send_message(Msg::GetReduction("kraken_umap".into()));  ////////// remove
+        //// TODO general callback to pass upwards
 
         let list_reductions_html = list_reductions.iter().map(|name| {
+            let current_reduction_name=&ctx.props().current_reduction_name;
+            let is_selected = if let Some(sel) = current_reduction_name {
+                sel == name
+            } else {
+                false
+            };
+
             html! {
-                <option>{name.clone()}</option>
+                <option selected={is_selected}>
+                    {name.clone()}
+                </option>
             }
         }).collect::<Vec<_>>();
 
+        //Callback to set reduction
+        let cb_select_reduction = ctx.link().callback(move |e: Event | { 
+            let target: Option<EventTarget> = e.target();
+            let input: HtmlSelectElement = target.and_then(|t| t.dyn_into::<HtmlSelectElement>().ok()).expect("wrong type");
+            let cur_value = input.value();
+            e.prevent_default();
+            log::debug!("select reduction");
+            MsgReduction::Propagate(MsgCore::GetReduction(cur_value.clone()))
+        });
+
+        //Request reduction if now available, and there was none before
+        if ctx.props().current_reduction_name.is_none() {
+            //log::debug!("want to set first reduction");
+            if let AsyncData::Loaded(current_datadesc) = &ctx.props().current_datadesc {
+                //                let list_reds = current_datadesc.reductions;
+                let red_name = current_datadesc.reductions.iter().next();
+                if let Some((red_name, _v)) = red_name {
+                    //                log::debug!("want to set first reduction  .. ");
+                    ctx.props().on_propagate.emit(MsgCore::GetReduction(red_name.clone()));
+                } else {
+                    //log::debug!("there are no reductions");
+                }
+            }
+        }
 
         //Compose the view
         html! {
@@ -489,9 +568,8 @@ impl Component for ReductionView {
                 // Select: Current reduction
                 <div style="position: absolute; left:20px; top:10px; display: flex; border-radius: 3px; padding: 5px;"> //border: 2px solid gray; 
                     {"Reduction: "}
-                    <select>
+                    <select onchange={cb_select_reduction}>
                         {list_reductions_html}
-//                        <option>{"foo"}</option>
                     </select>
 //                    <svg data-icon="polygon-filter" height="16" role="img" viewBox="0 0 16 16" width="16"><path d="M14 5c-.24 0-.47.05-.68.13L9.97 2.34c.01-.11.03-.22.03-.34 0-1.1-.9-2-2-2S6 .9 6 2c0 .04.01.08.01.12L2.88 4.21C2.61 4.08 2.32 4 2 4 .9 4 0 4.9 0 6c0 .74.4 1.38 1 1.72v4.55c-.6.35-1 .99-1 1.73 0 1.1.9 2 2 2 .74 0 1.38-.4 1.72-1h4.55c.35.6.98 1 1.72 1 1.1 0 2-.9 2-2 0-.37-.11-.7-.28-1L14 9c1.11-.01 2-.9 2-2s-.9-2-2-2zm-4.01 7c-.73 0-1.37.41-1.71 1H3.73c-.18-.3-.43-.55-.73-.72V7.72c.6-.34 1-.98 1-1.72 0-.04-.01-.08-.01-.12l3.13-2.09c.27.13.56.21.88.21.24 0 .47-.05.68-.13l3.35 2.79c-.01.11-.03.22-.03.34 0 .37.11.7.28 1l-2.29 4z" fill-rule="evenodd"></path></svg>
                 </div>
@@ -502,17 +580,19 @@ impl Component for ReductionView {
 
 
 
+
+
     ////////////////////////////////////////////////////////////
     /// Called after DOM has been created
     fn rendered(&mut self, ctx: &Context<Self>, _first_render: bool) {
 
-        let reduction_data = &ctx.props().reduction_data;
+        let reduction_data = get_current_reduction_data(ctx);
 
-        if let AsyncData::Loaded(datapoints) = reduction_data {
+        if let AsyncData::Loaded(datapoints) = &reduction_data {
 
             //Fit camera whenever we get a new umap to show
-            if self.last_reduction_data != *reduction_data {
-                self.camera.fit_reduction(datapoints);
+            if self.last_reduction_data != reduction_data {
+                self.camera.fit_reduction(datapoints.as_ref());
             }
             self.last_reduction_data = reduction_data.clone();
 
@@ -565,62 +645,64 @@ impl Component for ReductionView {
             }
 
             //Get color data
-            let color_reduction_by = &ctx.props().color_reduction_by;
-            log::debug!("Rendering {:?}",color_reduction_by);
-            if let ReductionColoringWithData::ByMeta(_name, color_data) = color_reduction_by {
-                if let AsyncData::Loaded(color_data) = color_data {
-                    match color_data.as_ref() {
+            let color_data = get_umap_coloring(ctx); //&ctx.props().color_reduction_by;
+            //log::debug!("Rendering {:?}",color_data);
 
-                        ///////// Color by categorical data
-                        CountFileMetaColumnData::Categorical(vec_data, vec_cats) => {
-                            //log::debug!("Making colors for category");
-                            
-                            //let palette = self.color_dict.get("default").unwrap();
-                            let palette = get_palette_for_categories(vec_cats.len());
+//            if let ReductionColoringWithData::ByMeta(_name, color_data) = color_reduction_by {
+            if let AsyncData::Loaded(color_data) = color_data {
+                match color_data.as_ref() {
 
-                            for (i,p) in vec_data.iter().enumerate() {
-                                let col = palette.get((*p as usize) % palette.len()).unwrap();
-                                let base = vec_vertex_size*i;
-                                vec_vertex[base + 3] = col.0;
-                                vec_vertex[base + 4] = col.1;
-                                vec_vertex[base + 5] = col.2;
+                    ///////// Color by categorical data
+                    CountFileMetaColumnData::Categorical(vec_data, vec_cats) => {
+                        //log::debug!("Making colors for category");
+                        
+                        //let palette = self.color_dict.get("default").unwrap();
+                        let palette = get_palette_for_categories(vec_cats.len());
 
-                            }
+                        for (i,p) in vec_data.iter().enumerate() {
+                            let col = palette.get((*p as usize) % palette.len()).unwrap();
+                            let base = vec_vertex_size*i;
+                            vec_vertex[base + 3] = col.0;
+                            vec_vertex[base + 4] = col.1;
+                            vec_vertex[base + 5] = col.2;
 
-                        },
+                        }
 
-                        ///////// Color by numerical data - plain array
-                        CountFileMetaColumnData::Numeric(vec_data) => {
+                    },
 
-                            //Normalize color range. TODO should only need to do this once during loading
-                            let (_min_val, max_val) = make_safe_minmax(&vec_data);
+                    ///////// Color by numerical data - plain array
+                    CountFileMetaColumnData::Numeric(vec_data) => {
 
-                            for (i,p) in vec_data.into_iter().enumerate() {
-                                let base = vec_vertex_size*i;
-                                vec_vertex[base + 3] = p/max_val;
-                                vec_vertex[base + 4] = 0.0;
-                                vec_vertex[base + 5] = 0.0;
-                            }
-                        },
+                        //Normalize color range. TODO should only need to do this once during loading
+                        let (_min_val, max_val) = make_safe_minmax(&vec_data);
 
-                        ///////// Color by numerical data - sparse array
-                        CountFileMetaColumnData::SparseNumeric(vec_index, vec_data) => {
+                        for (i,p) in vec_data.into_iter().enumerate() {
+                            let base = vec_vertex_size*i;
+                            vec_vertex[base + 3] = p/max_val;
+                            vec_vertex[base + 4] = 0.0;
+                            vec_vertex[base + 5] = 0.0;
+                        }
+                    },
 
-                            //Normalize color range. TODO should only need to do this once during loading. note, for sparse, min_val should be 0 by definition, more or less
-                            let (min_val, max_val) = make_safe_minmax(&vec_data);
-                            log::debug!("Render value range {} {}",min_val, max_val);
+                    ///////// Color by numerical data - sparse array
+                    CountFileMetaColumnData::SparseNumeric(vec_index, vec_data) => {
 
-                            for (i,p) in vec_index.iter().zip(vec_data.iter()) {
-                                let i = *i as usize;
-                                let base = vec_vertex_size*i;
-                                vec_vertex[base + 3] = p/max_val;
-                                vec_vertex[base + 4] = 0.0;
-                                vec_vertex[base + 5] = 0.0;
-                            }
-                        },
-                    }
+                        //Normalize color range. TODO should only need to do this once during loading. note, for sparse, min_val should be 0 by definition, more or less
+                        let (min_val, max_val) = make_safe_minmax(&vec_data);
+                        log::debug!("Render value range {} {}",min_val, max_val);
+
+                        for (i,p) in vec_index.iter().zip(vec_data.iter()) {
+                            let i = *i as usize;
+                            let base = vec_vertex_size*i;
+                            vec_vertex[base + 3] = p/max_val;
+                            vec_vertex[base + 4] = 0.0;
+                            vec_vertex[base + 5] = 0.0;
+                        }
+                    },
                 }
+                //}
             } else {
+
                 // Put in an empty color (default is black now)
             }
 
@@ -692,8 +774,7 @@ impl Component for ReductionView {
             
             // to make round points, need to draw square https://stackoverflow.com/questions/7237086/opengl-es-2-0-equivalent-for-es-1-0-circles-using-gl-point-smooth
             gl.draw_arrays(GL::POINTS, 0, num_points as i32);
-        }
-
+        } 
     }
 }
 
@@ -794,4 +875,27 @@ pub fn get_palette_for_categories(_num_cats: usize) -> Vec<Color3f> {
 fn get_tool_style(pos: usize, selected: bool) -> String {
     let c=if selected {"#0099FF"} else {"lightgray"};
     format!("position: absolute; left:{}px; top:10px; display: flex; border-radius: 3px; border: 2px solid gray; padding: 5px; background-color: {};", pos, c)
+}
+
+
+
+
+
+
+////////////////////////////////////////////////////////////
+/// Get the current coloring data
+fn get_umap_coloring(ctx: &Context<ReductionView>) -> AsyncData<CountFileMetaColumnData> {
+    let current_colorby = &ctx.props().current_colorby;
+    ctx.props().metadatas.data.get(&current_colorby)
+}
+
+////////////////////////////////////////////////////////////
+/// Get the current reduction data
+fn get_current_reduction_data(ctx: &Context<ReductionView>) -> AsyncData<ReductionViewData> {
+    let current_reduction_name = &ctx.props().current_reduction_name;
+    if let Some(current_reduction_name) = &current_reduction_name {
+        ctx.props().reductions.data.get(current_reduction_name)
+    } else {
+        AsyncData::NotLoaded
+    }
 }
