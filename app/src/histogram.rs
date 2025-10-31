@@ -3,7 +3,7 @@ use my_web_app::CountFileMetaColumnData;
 
 ////////////////////////////////////////////////////////////
 // Histogram for continuous data
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ContinuousFeatureHistogram {
     pub bin: Vec<f32>,
     pub count: Vec<u64>,
@@ -16,7 +16,7 @@ pub struct ContinuousFeatureHistogram {
 
 ////////////////////////////////////////////////////////////
 // Histogram for categorical data
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CategoricalFeatureHistogram {
     pub category: Vec<String>,
     pub count: Vec<u64>,
@@ -26,7 +26,7 @@ pub struct CategoricalFeatureHistogram {
 
 ////////////////////////////////////////////////////////////
 // Histogram for any type of data
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FeatureHistogram {
     ContinuousFeatureHistogram(ContinuousFeatureHistogram),
     CategoricalFeatureHistogram(CategoricalFeatureHistogram),

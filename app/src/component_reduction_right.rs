@@ -1,4 +1,5 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::sync::Mutex;
 
 use my_web_app::DatasetDescResponse;
 use wasm_bindgen::JsCast;
@@ -51,6 +52,8 @@ pub struct FeatureView {
     //Search feature state
     pub last_search_feature_input: String,
     pub last_search_feature_mat: String,
+
+    pub histograms: Mutex<HashMap<PerCellDataSource, FeatureHistogram>>,
 }
 
 impl Component for FeatureView {
@@ -67,6 +70,7 @@ impl Component for FeatureView {
             open_features: Vec::new(),
             last_search_feature_input: String::new(),
             last_search_feature_mat: String::new(),
+            histograms: Mutex::new(HashMap::new()),
         }
     }
 
@@ -391,48 +395,61 @@ impl FeatureView {
 
 
 
+
+
+    fn make_histogram_bins(&self, _ctx: &Context<Self>, h: &FeatureHistogram, list_bins_html: &mut Vec<VNode>, hist_height: f32, hist_width: f32) {
+        //log::debug!("made hist {:?}",h);
+        if let FeatureHistogram::ContinuousFeatureHistogram(h) = h {
+            //let max_count = h.max_count as f64;
+            let scale_y = (hist_height)/(h.max_count as f32);
+            let scale_x = hist_width/(h.max as f32);
+            let bin_width = hist_width/(h.bin.len() as f32);
+
+            for (bin,cnt) in h.bin.iter().zip(h.count.iter()) {
+                let h = (*cnt as f32) * scale_y;
+                let x = (*bin as f32)*scale_x;
+                list_bins_html.push(
+                    html! {
+                        <rect 
+                            x={x.to_string()} 
+                            y={(hist_height-h).to_string()}
+                            width={bin_width.to_string()}
+                            height={h.to_string()} 
+                            style="fill: rgb(0, 0, 0);"  
+                        />
+                    }
+                );
+            }
+        }
+    }
+
     ////////////////////////////////////////////////////////////
     /// Render the histogram for one feature
     fn make_histogram(&self, ctx: &Context<Self>, count_name: &String, feature_name: &String) -> VNode {
 
         let mut list_bins_html = Vec::new();
 
-        let hist_height=15.0;
-        let hist_width=150.0; //fit resizing component to get this?
+        let hist_height=15.0f32;
+        let hist_width=150.0f32; //fit resizing component to get this?
 
         let id = PerCellDataSource::Counts(count_name.clone(), feature_name.clone());
         if let AsyncData::Loaded(x) = ctx.props().metadatas.data.get(&id) {
 
-            let h = FeatureHistogram::build(x.as_ref());
+            //Render and cache histogram
+            let mut histo_cache = self.histograms.lock().unwrap();
 
-            //log::debug!("made hist {:?}",h);
-            if let FeatureHistogram::ContinuousFeatureHistogram(h) = h {
-
-                //let max_count = h.max_count as f64;
-                let scale_y = (hist_height)/(h.max_count as f32);
-                let scale_x = hist_width/(h.max as f32);
-                let bin_width = hist_width/(h.bin.len() as f32);
-
-                for (bin,cnt) in h.bin.iter().zip(h.count.iter()) {
-                    let h = (*cnt as f32) * scale_y;
-                    let x = (*bin as f32)*scale_x;
-                    list_bins_html.push(
-                        html! {
-                            <rect 
-                                x={x.to_string()} 
-                                y={(hist_height-h).to_string()}
-                                width={bin_width.to_string()}
-                                height={h.to_string()} 
-                                style="fill: rgb(0, 0, 0);"  
-                            />
-                        }
-                    );
-                }
+            let h = histo_cache.get(&id);
+            if let Some(h) = h {
+                self.make_histogram_bins(ctx, h, &mut list_bins_html, hist_height, hist_width);
+            } else {
+                let h = FeatureHistogram::build(x.as_ref());
+                self.make_histogram_bins(ctx, &h, &mut list_bins_html, hist_height, hist_width);
+                histo_cache.insert(id.clone(), h);
             }
+            
         }
         // "fill: rgb(175, 240, 91);"
-
-                   // log::debug!("hist html {:?}",list_bins_html);
+        // log::debug!("hist html {:?}",list_bins_html);
 
 
         html! {
