@@ -35,7 +35,7 @@ pub struct ReductionResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FeatureCountsRequest {
     pub counts_name: String,
-    pub row: u32,
+    pub feature_name: String,
 }
 
 ////////////////////////////////////////////////////////////

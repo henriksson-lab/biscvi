@@ -30,9 +30,6 @@ impl Model {
             sig
         });
          
- //                 ctx.link().send_message(Msg::GetDatasetDesc());
-    //    self.current_datadesc
-
         html! {
             <div>
                 <div class="biscvi-dimred-maindiv"> ////////// if behind everything, could take full screen!! but buttons need space adjustment

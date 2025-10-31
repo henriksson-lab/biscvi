@@ -25,11 +25,25 @@ pub struct CountFile {
 }
 impl CountFile {
 
+    ////////////////////////////////////////////////////////////
+    /// Retrieve feature index by name
+    pub fn get_feature_index(&self, count_name: &String, feature_name: &String) -> anyhow::Result<usize> {
+        let mat = self.matrices.get(count_name);
+        if let Some(mat) = mat {
+            if let Some(id) = mat.map_feature_names_pos.get(feature_name) {
+                anyhow::Ok(*id)
+            } else {
+                anyhow::bail!("Could not find feature ID")
+            }
+        } else {
+            anyhow::bail!("Could not find feature ID")
+        }
+    }
 
     ////////////////////////////////////////////////////////////
     /// Retrieve all feature counts for a given cell
     pub fn get_counts_for_cell(&self, count_name: &String, row: u32) -> anyhow::Result<MetadataColumnResponse> {
-
+        
         let group_counts = self.file.group("/counts")?; 
         let group_cnt = group_counts.group(&count_name)?;
 
@@ -179,10 +193,12 @@ pub fn index_countfile(p: &PathBuf) -> anyhow::Result<CountFile> {
         let list_indptr = read_hdf5_u32vec(&cnt.dataset("indptr")?)?;
         let list_feature_names = read_hdf5_stringvec(&cnt.dataset("feature_names")?)?;
 
-        let c = CountFileMat {
-            list_feature_names,
-            list_indptr
+        let mut c = CountFileMat {
+            list_feature_names: list_feature_names,
+            list_indptr: list_indptr,
+            map_feature_names_pos: HashMap::new(),
         };
+        c.build_map();
         map_matrices.insert(count_name.clone(), c);
     }
 

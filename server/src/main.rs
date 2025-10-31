@@ -42,7 +42,10 @@ async fn get_featurecounts(server_data: Data<Mutex<ServerData>>, req_body: web::
     let Json(req) = req_body;
 
     let server_data =server_data.lock().unwrap();
-    let mat = server_data.bdir.counts.get_counts_for_cell(&req.counts_name.into(), req.row)?;
+
+    let feature_index = server_data.bdir.counts.get_feature_index(&req.counts_name, &req.feature_name)?;
+
+    let mat = server_data.bdir.counts.get_counts_for_cell(&req.counts_name.into(), feature_index as u32)?;
     let ser_out = serde_cbor::to_vec(&mat)?;
 
     println!("get_featurecounts response {:?}",mat);

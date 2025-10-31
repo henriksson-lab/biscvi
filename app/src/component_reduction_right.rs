@@ -1,12 +1,10 @@
-use std::sync::Arc;
-use std::sync::Mutex;
-
 use std::collections::HashSet;
 
 use my_web_app::DatasetDescResponse;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlSelectElement;
 use web_sys::{EventTarget, HtmlInputElement};
+use yew::Event;
 use yew::virtual_dom::VNode;
 use yew::{Callback, Component, Context, Html, KeyboardEvent, MouseEvent, NodeRef, html};
 use yew::Properties;
@@ -21,7 +19,7 @@ pub enum MsgFeature {
 //    ToggleExpand(String)
     FeatureSearchChange(String, bool),
     SetLastCountName(String),
-    FeatureSearchMatChange(String),
+    //FeatureSearchMatChange(String),
 }
 
 
@@ -47,8 +45,7 @@ pub struct FeatureView {
 
     pub open_features: Vec<PerCellDataSource>,
 
-    pub last_counttype_select: String,
-
+    //Search feature state
     pub last_search_feature_input: String,
     pub last_search_feature_mat: String,
 }
@@ -65,7 +62,6 @@ impl Component for FeatureView {
             expanded_meta: HashSet::new(),
             selected_meta: HashSet::new(),
             open_features: Vec::new(),
-            last_counttype_select: String::new(), /////// TODO: need to grab the value!
             last_search_feature_input: String::new(),
             last_search_feature_mat: String::new(),
         }
@@ -87,30 +83,21 @@ impl Component for FeatureView {
             //////// Key pressed in search feature input
             MsgFeature::FeatureSearchChange(value, is_enter) => {
                 self.last_search_feature_input = value.clone();
-                let feature_name = PerCellDataSource::Counts(self.last_counttype_select.clone(), value.clone());
+                let feature_name = PerCellDataSource::Counts(self.last_search_feature_mat.clone(), value.clone());
                 if is_enter {
+                    self.last_search_feature_input = String::new();
                     //Check that the feature is not already there, or empty
                     if !self.open_features.contains(&feature_name) && value != "" {
                         self.open_features.push(feature_name.clone());
                         ctx.props().on_colorbyfeature.emit(feature_name); // Color by this feature right away
-                        true
-                    } else {
-                        true // false
                     }
-                } else {
-                    true // false
                 }
-            },
-
-            MsgFeature::FeatureSearchMatChange(value) => {
-                self.last_search_feature_mat = value.clone();
                 true
             },
-            
 
             //////// Component updated, and a list of count tables is now present. UI has already been updated
             MsgFeature::SetLastCountName(countname) => {
-                self.last_counttype_select = countname;
+                self.last_search_feature_mat = countname;
                 false
             }
 
@@ -158,7 +145,6 @@ impl Component for FeatureView {
             }
         }
 
-
         //SVG for search icon
         let svg_search = html! {
             <svg data-icon="search" height="16" role="img" viewBox="0 0 16 16" width="16">
@@ -183,10 +169,19 @@ impl Component for FeatureView {
         }
 
         //Keep track of currently selected count table. It is not populated at first, so need to grab a value once the data becomes available
-        if self.last_counttype_select=="" && !list_feature_types.is_empty() {
+        if self.last_search_feature_mat=="" && !list_feature_types.is_empty() {
             let first_entry = list_feature_types.get(0).unwrap();
             ctx.link().send_message(MsgFeature::SetLastCountName(first_entry.clone()));         
         }
+
+        //Callback: change of count matrix
+        let cb_change_search_mat = ctx.link().callback(move |e: Event | { 
+            let target: Option<EventTarget> = e.target();
+            let input: HtmlSelectElement = target.and_then(|t| t.dyn_into::<HtmlSelectElement>().ok()).expect("wrong type");
+            let t=input.value();
+            e.prevent_default();
+            MsgFeature::SetLastCountName(t.clone())
+        });
 
         //Callback for keypresses on the feature search input
         let input_onkeyup = ctx.link().callback(move |e: KeyboardEvent | { 
@@ -203,10 +198,9 @@ impl Component for FeatureView {
             MsgFeature::FeatureSearchChange(cur_value, is_enter)
         });
 
-
-
         //Create autocomplete list for search -- get relevant features
         let mut list_autocomplete_red = Vec::new();
+        //log::debug!("self.last_search_feature_input {}", self.last_search_feature_input);
         if !self.last_search_feature_input.is_empty() {
             if let AsyncData::Loaded(current_datadesc) = &ctx.props().current_datadesc {
                 let mat = current_datadesc.matrices.get(&self.last_search_feature_mat);
@@ -218,6 +212,8 @@ impl Component for FeatureView {
                             list_autocomplete_red.push(item.clone());
                         }
                     }
+                } else {
+                    log::debug!("No count table found for {}", self.last_search_feature_mat);
                 }
             }
         }
@@ -231,7 +227,7 @@ impl Component for FeatureView {
                 let document = window.document().unwrap();
 
                 //Empty the search input
-                let target = document.get_element_by_id("search-feature-input");//.unwrap();
+                let target = document.get_element_by_id("search-feature-input");
                 let input: HtmlInputElement = target.and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).expect("wrong type");
                 input.set_value("");
 
@@ -245,18 +241,6 @@ impl Component for FeatureView {
                 </div>
             });
         }
-
-
-            let cb_change_search_mat = ctx.link().callback(move |e: Event | { 
-                let target: Option<EventTarget> = e.target();
-                let input: HtmlSelectElement = target.and_then(|t| t.dyn_into::<HtmlSelectElement>().ok()).expect("wrong type");
-                let t=input.value();
-                e.prevent_default();
-                MsgFeature::FeatureSearchMatChange(t.clone(), true)
-            });
-
-
-
 
         //Compose the view
         html! {
@@ -333,8 +317,7 @@ impl FeatureView {
 
 
         //Callback to color by this column
-        //let meta_name_copy = meta_name.clone();
-        let combo_feature_copy= combo_feature.clone();// = PerCellDataSource::Counts(count_name.clone(), feature_name.clone());
+        let combo_feature_copy= combo_feature.clone();
         let cb_color_by = ctx.link().callback(move |_e: MouseEvent | { 
             MsgFeature::SetColorBy(combo_feature_copy.clone())
         });

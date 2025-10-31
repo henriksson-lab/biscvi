@@ -631,8 +631,8 @@ impl Component for ReductionView {
             let vertices = &datapoints.data;    
             let mut vec_vertex:Vec<f32> = Vec::new();
 
-            let vec_vertex_size = 6;
-            vec_vertex.reserve(num_points*6);  //Size of vec3+vec3
+            let vec_vertex_size = 6; //Size of vec3+vec3
+            vec_vertex.reserve(num_points * vec_vertex_size);  
             for i in 0..num_points {
                 let input_base = i*2;
                 vec_vertex.push(*vertices.get(input_base+0).unwrap());
@@ -645,10 +645,9 @@ impl Component for ReductionView {
             }
 
             //Get color data
-            let color_data = get_umap_coloring(ctx); //&ctx.props().color_reduction_by;
-            //log::debug!("Rendering {:?}",color_data);
+            let color_data = get_umap_coloring(ctx);
+//            log::debug!("Rendering {:?}",color_data);
 
-//            if let ReductionColoringWithData::ByMeta(_name, color_data) = color_reduction_by {
             if let AsyncData::Loaded(color_data) = color_data {
                 match color_data.as_ref() {
 
@@ -665,6 +664,7 @@ impl Component for ReductionView {
                             vec_vertex[base + 3] = col.0;
                             vec_vertex[base + 4] = col.1;
                             vec_vertex[base + 5] = col.2;
+                            //log::debug!("index {} {:?}",i,col);
 
                         }
 
@@ -687,6 +687,9 @@ impl Component for ReductionView {
                     ///////// Color by numerical data - sparse array
                     CountFileMetaColumnData::SparseNumeric(vec_index, vec_data) => {
 
+                        //log::debug!("Rendering sparse {:?}",color_data);
+                        log::debug!("Rendering sparse, num points {} out of {}",vec_index.len(), datapoints.num_point);
+
                         //Normalize color range. TODO should only need to do this once during loading. note, for sparse, min_val should be 0 by definition, more or less
                         let (min_val, max_val) = make_safe_minmax(&vec_data);
                         log::debug!("Render value range {} {}",min_val, max_val);
@@ -695,12 +698,14 @@ impl Component for ReductionView {
                             let i = *i as usize;
                             let base = vec_vertex_size*i;
                             vec_vertex[base + 3] = p/max_val;
+//                            vec_vertex[base + 3] = 1.0;                            
                             vec_vertex[base + 4] = 0.0;
                             vec_vertex[base + 5] = 0.0;
+
+                            //log::debug!("index {} {}",i,p/max_val);
                         }
                     },
                 }
-                //}
             } else {
 
                 // Put in an empty color (default is black now)
@@ -743,13 +748,27 @@ impl Component for ReductionView {
             let a_position = gl.get_attrib_location(&shader_program, "a_position") as u32;
             //log::debug!("a_position {}",a_position);
             gl.enable_vertex_attrib_array(a_position);
-            gl.vertex_attrib_pointer_with_i32(a_position, 3, GL::FLOAT, false, sizeof_float*6, 0);  
+            gl.vertex_attrib_pointer_with_i32(
+                a_position, 
+                3, 
+                GL::FLOAT, 
+                false, 
+                sizeof_float*6, 
+                0
+            );  
 
             //Attach color vector as an attribute
             let a_color = gl.get_attrib_location(&shader_program, "a_color") as u32;
             //log::debug!("a_color {}",a_color);
             gl.enable_vertex_attrib_array(a_color);
-            gl.vertex_attrib_pointer_with_i32(a_color, 3, GL::FLOAT, false, sizeof_float*6, sizeof_float*3);   //index of out range   ... not big enough for the draw call
+            gl.vertex_attrib_pointer_with_i32(
+                a_color, 
+                3,
+                GL::FLOAT, 
+                false, 
+                sizeof_float * 6, 
+                sizeof_float * 3
+            );
 
             //Attach camera attributes
             let u_camera_x = gl.get_uniform_location(&shader_program, "u_camera_x");

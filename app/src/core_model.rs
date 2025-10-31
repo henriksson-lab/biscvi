@@ -255,7 +255,7 @@ impl Component for Model {
 
                             let query = FeatureCountsRequest {
                                 counts_name: counts_name.clone(),
-                                row: 0, // column_name.clone(),   feature_name
+                                feature_name: feature_name.clone(), // 0, // column_name.clone(),   feature_name
                             };
                             let query_json = serde_json::to_vec(&query).expect("Could not convert to json");
 
