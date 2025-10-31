@@ -2,7 +2,7 @@ use my_web_app::CountFileMetaColumnData;
 
 
 ////////////////////////////////////////////////////////////
-// Histogram for continuous data
+/// Histogram for continuous data
 #[derive(Debug, Clone)]
 pub struct ContinuousFeatureHistogram {
     pub bin: Vec<f32>,
@@ -15,7 +15,7 @@ pub struct ContinuousFeatureHistogram {
 
 
 ////////////////////////////////////////////////////////////
-// Histogram for categorical data
+/// Histogram for categorical data
 #[derive(Debug, Clone)]
 pub struct CategoricalFeatureHistogram {
     pub category: Vec<String>,
@@ -25,7 +25,7 @@ pub struct CategoricalFeatureHistogram {
 
 
 ////////////////////////////////////////////////////////////
-// Histogram for any type of data
+/// Histogram for any type of data
 #[derive(Debug, Clone)]
 pub enum FeatureHistogram {
     ContinuousFeatureHistogram(ContinuousFeatureHistogram),
@@ -35,7 +35,7 @@ impl FeatureHistogram {
 
 
     ////////////////////////////////////////////////////////////
-    // Generate a histogram for any type of data
+    /// Generate a histogram for any type of data
     pub fn build(inp: &CountFileMetaColumnData) -> FeatureHistogram {
         match inp {
             ///// Categorial data
@@ -74,7 +74,7 @@ impl FeatureHistogram {
 
 
 ////////////////////////////////////////////////////////////
-// Make a histogram of continuous data
+/// Make a histogram of continuous data
 fn make_histo_continuous_data(list_data: &Vec<f32>) -> FeatureHistogram { /////////////////////// for sparse: need to give total number of elements. store total size in the type!! 
 
     //log::debug!("compute hist {:?}", list_data);
@@ -130,7 +130,7 @@ fn make_histo_continuous_data(list_data: &Vec<f32>) -> FeatureHistogram { //////
 
 
 ////////////////////////////////////////////////////////////
-// Find min and max values of a list of floats, even if list is empty
+/// Find min and max values of a list of floats, even if list is empty
 pub fn make_safe_minmax(list_data: &Vec<f32>) -> (f32,f32) {
     if list_data.is_empty() {
         (0.0,0.0)

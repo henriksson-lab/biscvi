@@ -26,4 +26,8 @@ serde_cbor = "0.11.2"
 ndarray = "0.15.6"
 actix-error = "0.2.11"
 
+flate2 = { version = "1.0.28", features = ["zlib-rs"], default-features = false }
+noodles = { version = "0.97.0", features = ["bam", "cram", "fastq", "sam", "gff", "gtf", "bgzf", "async"] }
+bstr = { version = "1.12.1", features = ["serde"] }
+
 #https://docs.rs/archflow/latest/archflow/

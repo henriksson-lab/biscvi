@@ -1,6 +1,8 @@
 pub mod index;
 pub mod countfile;
 pub mod err;
+pub mod gbrowser_gff;
+pub mod gbrowser_noodles;
 
 use std::fs::File;
 use std::path::{Path};

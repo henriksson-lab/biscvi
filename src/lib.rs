@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 pub mod countfile_struct;
+pub mod gbrowser_struct;
 
 use countfile_struct::CountFileMat;
 use countfile_struct::CountFileMetaColumnDesc;
