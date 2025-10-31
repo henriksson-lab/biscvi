@@ -755,7 +755,7 @@ impl Component for ReductionView {
                 false, 
                 sizeof_float*6, 
                 0
-            );  
+            );
 
             //Attach color vector as an attribute
             let a_color = gl.get_attrib_location(&shader_program, "a_color") as u32;

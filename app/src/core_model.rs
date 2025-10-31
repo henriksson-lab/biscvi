@@ -290,18 +290,11 @@ impl Component for Model {
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
             MsgCore::SetColorByMeta(name, res) => {  
-
-                log::debug!("SetColorByMeta {} {:?}",name, res);
-
+                //log::debug!("SetColorByMeta {} {:?}",name, res);
                 //Update data if needed
                 if let Some(res) = res {
-//                    let mut current_data = self.current_data.lock().unwrap();
-  //                  current_data.metadatas.insert(name.clone(), AsyncData::new(res.data));
-
                     self.metadatas = BiscviCache::new(self.metadatas.data.insert(&name, AsyncData::new(res.data)));
-
                 }
-                //self.color_umap_by = ReductionColoring::ByMeta(name);  //TODO: could compare by pointer to force updates
                 true
             },
 

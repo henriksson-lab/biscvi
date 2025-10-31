@@ -9,7 +9,8 @@ use yew::virtual_dom::VNode;
 use yew::{Callback, Component, Context, Html, KeyboardEvent, MouseEvent, NodeRef, html};
 use yew::Properties;
 
-use crate::appstate::{AsyncData, PerCellDataSource};
+use crate::appstate::{AsyncData, BiscviCache, MetadataData, PerCellDataSource};
+use crate::histogram::FeatureHistogram;
 
 ////////////////////////////////////////////////////////////
 /// Message sent to the event system for updating the page
@@ -32,6 +33,8 @@ pub struct Props {
 
     pub current_colorby: PerCellDataSource,
     //pub current_data: Arc<Mutex<BiscviData>>,
+
+    pub metadatas: BiscviCache<MetadataData>,          // call something else? countdatas?
 }
 
 
@@ -392,101 +395,51 @@ impl FeatureView {
     /// Render the histogram for one feature
     fn make_histogram(&self, ctx: &Context<Self>, count_name: &String, feature_name: &String) -> VNode {
 
-        //let current_datadesc = ctx.props().current_datadesc;
+        let mut list_bins_html = Vec::new();
 
-        /*
-            //Get color data
-            let color_reduction_by = &ctx.props().color_reduction_by;
-            log::debug!("Rendering {:?}",color_reduction_by);
-            if let ReductionColoringWithData::ByMeta(_name, color_data) = color_reduction_by {
-                if let AsyncData::Loaded(color_data) = color_data {
-                    match color_data.as_ref() {
+        let hist_height=15.0;
+        let hist_width=150.0; //fit resizing component to get this?
 
-                        ///////// Color by numerical data - plain array
-                        CountFileMetaColumnData::Numeric(vec_data) => {
+        let id = PerCellDataSource::Counts(count_name.clone(), feature_name.clone());
+        if let AsyncData::Loaded(x) = ctx.props().metadatas.data.get(&id) {
 
-                            //Normalize color range. TODO should only need to do this once during loading
-                            let (_min_val, max_val) = make_safe_minmax(&vec_data);
+            let h = FeatureHistogram::build(x.as_ref());
 
-                            for (i,p) in vec_data.into_iter().enumerate() {
-                                let base = vec_vertex_size*i;
-                                vec_vertex[base + 3] = p/max_val;
-                                vec_vertex[base + 4] = 0.0;
-                                vec_vertex[base + 5] = 0.0;
-                            }
-                        },
+            //log::debug!("made hist {:?}",h);
+            if let FeatureHistogram::ContinuousFeatureHistogram(h) = h {
 
-                        ///////// Color by numerical data - sparse array
-                        CountFileMetaColumnData::SparseNumeric(vec_index, vec_data) => {
+                //let max_count = h.max_count as f64;
+                let scale_y = (hist_height)/(h.max_count as f32);
+                let scale_x = hist_width/(h.max as f32);
+                let bin_width = hist_width/(h.bin.len() as f32);
 
-                            //Normalize color range. TODO should only need to do this once during loading. note, for sparse, min_val should be 0 by definition, more or less
-                            let (min_val, max_val) = make_safe_minmax(&vec_data);
-                            log::debug!("Render value range {} {}",min_val, max_val);
-
-                            for (i,p) in vec_index.iter().zip(vec_data.iter()) {
-                                let i = *i as usize;
-                                let base = vec_vertex_size*i;
-                                vec_vertex[base + 3] = p/max_val;
-                                vec_vertex[base + 4] = 0.0;
-                                vec_vertex[base + 5] = 0.0;
-                            }
-                        },
-                    }
+                for (bin,cnt) in h.bin.iter().zip(h.count.iter()) {
+                    let h = (*cnt as f32) * scale_y;
+                    let x = (*bin as f32)*scale_x;
+                    list_bins_html.push(
+                        html! {
+                            <rect 
+                                x={x.to_string()} 
+                                y={(hist_height-h).to_string()}
+                                width={bin_width.to_string()}
+                                height={h.to_string()} 
+                                style="fill: rgb(0, 0, 0);"  
+                            />
+                        }
+                    );
                 }
-            } else {
-                // Missing data
-            }        
-         */
+            }
+        }
+        // "fill: rgb(175, 240, 91);"
 
+                   // log::debug!("hist html {:?}",list_bins_html);
 
 
         html! {
-            <svg width="100%" height="15" style="display: block;">  // id="histogram_XBP1_svg" 
-                <g class="histogram-container" transform="translate(0,0)">
-                    <g>
-                        <rect x="1" y="0" width="4.25" height="15" style="fill: rgb(175, 240, 91);"></rect>
-                        <rect x="5.25" y="14.99482731179373" width="4.25" height="0.0051726882062705926" style="fill: rgb(163, 242, 88);"></rect>
-                        <rect x="9.5" y="14.970157568040745" width="4.250000000000002" height="0.029842431959254512" style="fill: rgb(151, 243, 87);"></rect>
-                        <rect x="13.750000000000002" y="14.94906891612287" width="4.249999999999998" height="0.050931083877129524" style="fill: rgb(139, 244, 87);"></rect>
-                        <rect x="18" y="14.859143721152316" width="4.25" height="0.14085627884768392" style="fill: rgb(127, 246, 88);"></rect>
-                        <rect x="22.25" y="14.726643323253223" width="4.2500000000000036" height="0.27335667674677744" style="fill: rgb(115, 246, 90);"></rect>
-                        <rect x="26.500000000000004" y="14.53445806143562" width="4.25" height="0.46554193856438" style="fill: rgb(103, 247, 94);"></rect>
-                        <rect x="30.750000000000004" y="14.448909756485754" width="4.2499999999999964" height="0.5510902435142455" style="fill: rgb(93, 246, 98);"></rect>
-                        <rect x="35" y="14.385643800732135" width="4.250000000000007" height="0.6143561992678652" style="fill: rgb(82, 246, 103);"></rect>
-                        <rect x="39.25000000000001" y="14.434585389145314" width="4.249999999999993" height="0.5654146108546865" style="fill: rgb(73, 245, 109);"></rect>
-                        <rect x="43.5" y="14.47357950023874" width="4.250000000000007" height="0.5264204997612598" style="fill: rgb(64, 243, 115);"></rect>
-                        <rect x="47.75000000000001" y="14.586582842591119" width="4.25" height="0.4134171574088814" style="fill: rgb(56, 241, 123);"></rect>
-                        <rect x="52.00000000000001" y="14.632739137354767" width="4.249999999999993" height="0.3672608626452334" style="fill: rgb(48, 239, 130);"></rect>
-                        <rect x="56.25" y="14.673722743912144" width="4.250000000000007" height="0.32627725608785596" style="fill: rgb(42, 235, 138);"></rect>
-                        <rect x="60.50000000000001" y="14.759271048862008" width="4.249999999999993" height="0.2407289511379922" style="fill: rgb(37, 232, 146);"></rect>
-                        <rect x="64.75" y="14.77041222346013" width="4.25" height="0.22958777653986928" style="fill: rgb(33, 227, 155);"></rect>
-                        <rect x="69" y="14.783940792614993" width="4.250000000000014" height="0.2160592073850065" style="fill: rgb(29, 223, 163);"></rect>
-                        <rect x="73.25000000000001" y="14.82651599554353" width="4.25" height="0.17348400445646917" style="fill: rgb(27, 217, 171);"></rect>
-                        <rect x="77.50000000000001" y="14.814181123667039" width="4.249999999999986" height="0.18581887633296112" style="fill: rgb(26, 212, 179);"></rect>
-                        <rect x="81.75" y="14.845615151997453" width="4.25" height="0.1543848480025467" style="fill: rgb(25, 206, 187);"></rect>
-                        <rect x="86" y="14.83208658284259" width="4.25" height="0.16791341715740948" style="fill: rgb(26, 199, 194);"></rect>
-                        <rect x="90.25" y="14.843227757440713" width="4.250000000000014" height="0.15677224255928657" style="fill: rgb(27, 193, 201);"></rect>
-                        <rect x="94.50000000000001" y="14.850787840203724" width="4.25" height="0.1492121597962761" style="fill: rgb(29, 186, 206);"></rect>
-                        <rect x="98.75000000000001" y="14.853573133853255" width="4.25" height="0.14642686614674538" style="fill: rgb(32, 178, 212);"></rect>
-                        <rect x="103.00000000000001" y="14.856358427502785" width="4.249999999999986" height="0.14364157249721465" style="fill: rgb(35, 171, 216);"></rect>
-                        <rect x="107.25" y="14.8798344739774" width="4.25" height="0.12016552602259978" style="fill: rgb(39, 163, 220);"></rect>
-                        <rect x="111.5" y="14.893363043132261" width="4.250000000000014" height="0.10663695686773877" style="fill: rgb(44, 156, 223);"></rect>
-                        <rect x="115.75000000000001" y="14.912860098678975" width="4.25" height="0.08713990132102545" style="fill: rgb(49, 148, 224);"></rect>
-                        <rect x="120.00000000000001" y="14.927184466019417" width="4.25" height="0.07281553398058271" style="fill: rgb(54, 140, 225);"></rect>
-                        <rect x="124.25000000000001" y="14.94071303517428" width="4.249999999999986" height="0.059286964825719934" style="fill: rgb(60, 132, 225);"></rect>
-                        <rect x="128.5" y="14.961005888906573" width="4.25" height="0.03899411109342665" style="fill: rgb(65, 125, 224);"></rect>
-                        <rect x="132.75" y="14.965780678020055" width="4.25" height="0.03421932197994515" style="fill: rgb(71, 118, 222);"></rect>
-                        <rect x="137" y="14.983288238102817" width="4.25" height="0.016711761897182598" style="fill: rgb(76, 110, 219);"></rect>
-                        <rect x="141.25" y="14.989256724494668" width="4.250000000000028" height="0.01074327550533205" style="fill: rgb(82, 104, 216);"></rect>
-                        <rect x="145.50000000000003" y="14.99403151360815" width="4.249999999999972" height="0.005968486391850547" style="fill: rgb(87, 97, 211);"></rect>
-                        <rect x="149.75" y="14.993633614515359" width="4.250000000000028" height="0.0063663854846414125" style="fill: rgb(92, 90, 206);"></rect>
-                        <rect x="154.00000000000003" y="14.99761260544326" width="4.249999999999972" height="0.0023873945567398636" style="fill: rgb(96, 84, 200);"></rect>
-                        <rect x="158.25" y="14.99840840362884" width="4.25" height="0.001591596371159909" style="fill: rgb(100, 79, 193);"></rect>
-                        <rect x="162.5" y="14.99960210090721" width="4.250000000000028" height="0.00039789909279086544" style="fill: rgb(104, 73, 186);"></rect>
-                        <rect x="166.75000000000003" y="14.99920420181442" width="4.249999999999972" height="0.0007957981855799545" style="fill: rgb(107, 68, 178);"></rect>
-                    </g>
-                </g>
+            <svg width={hist_width.to_string()} height={hist_height.to_string()} style="display: block;">  
+                {list_bins_html}
             </svg>
         }
     }
 }
+

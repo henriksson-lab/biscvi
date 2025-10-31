@@ -1,4 +1,4 @@
-use crate::{appstate::{AsyncData, PerCellDataSource}, component_reduction_main::{ReductionColoring, ReductionColoringWithData, ReductionView}, core_model::*};
+use crate::{appstate::{PerCellDataSource}, component_reduction_main::{ReductionView}, core_model::*};
 
 use yew::{prelude::*};
 
@@ -51,6 +51,7 @@ impl Model {
                     current_colorby={self.current_colorby.clone()}
                 />
                 <FeatureView
+                    metadatas={self.metadatas.clone()}
                     current_datadesc={self.current_datadesc.clone()}
                     on_colorbyfeature={on_colorbymeta}  //expand, not just meta?
                     current_colorby={self.current_colorby.clone()}
