@@ -5,6 +5,7 @@ use std::collections::HashSet;
 
 use my_web_app::DatasetDescResponse;
 use wasm_bindgen::JsCast;
+use web_sys::HtmlSelectElement;
 use web_sys::{EventTarget, HtmlInputElement};
 use yew::virtual_dom::VNode;
 use yew::{Callback, Component, Context, Html, KeyboardEvent, MouseEvent, NodeRef, html};
@@ -20,6 +21,7 @@ pub enum MsgFeature {
 //    ToggleExpand(String)
     FeatureSearchChange(String, bool),
     SetLastCountName(String),
+    FeatureSearchMatChange(String),
 }
 
 
@@ -46,6 +48,9 @@ pub struct FeatureView {
     pub open_features: Vec<PerCellDataSource>,
 
     pub last_counttype_select: String,
+
+    pub last_search_feature_input: String,
+    pub last_search_feature_mat: String,
 }
 
 impl Component for FeatureView {
@@ -61,6 +66,8 @@ impl Component for FeatureView {
             selected_meta: HashSet::new(),
             open_features: Vec::new(),
             last_counttype_select: String::new(), /////// TODO: need to grab the value!
+            last_search_feature_input: String::new(),
+            last_search_feature_mat: String::new(),
         }
     }
 
@@ -79,6 +86,7 @@ impl Component for FeatureView {
 
             //////// Key pressed in search feature input
             MsgFeature::FeatureSearchChange(value, is_enter) => {
+                self.last_search_feature_input = value.clone();
                 let feature_name = PerCellDataSource::Counts(self.last_counttype_select.clone(), value.clone());
                 if is_enter {
                     //Check that the feature is not already there, or empty
@@ -87,12 +95,18 @@ impl Component for FeatureView {
                         ctx.props().on_colorbyfeature.emit(feature_name); // Color by this feature right away
                         true
                     } else {
-                        false
+                        true // false
                     }
                 } else {
-                    false
+                    true // false
                 }
             },
+
+            MsgFeature::FeatureSearchMatChange(value) => {
+                self.last_search_feature_mat = value.clone();
+                true
+            },
+            
 
             //////// Component updated, and a list of count tables is now present. UI has already been updated
             MsgFeature::SetLastCountName(countname) => {
@@ -154,15 +168,17 @@ impl Component for FeatureView {
 
         //Generate SELECT for all count tables
         let mut list_feature_types = Vec::new();
-        list_feature_types.push("RNA".to_string());
-
+        if let AsyncData::Loaded(current_datadesc) = &ctx.props().current_datadesc {
+            for (mat_name, _mat) in &current_datadesc.matrices {
+                list_feature_types.push(mat_name.clone());
+            }
+        }
         let mut list_feature_types_html = Vec::new();
         for t in &list_feature_types {
             list_feature_types_html.push(html! {
-                <option value={t.clone()}>
+                <option value={t.clone()} selected={&self.last_search_feature_mat==t}>
                     {t}
                 </option>
-
             });
         }
 
@@ -181,22 +197,82 @@ impl Component for FeatureView {
             e.prevent_default();
             let is_enter = e.key() == "Enter" || e.key_code() == 13;
             if is_enter {
-                //log::debug!("got input");
-                input.set_value(""); //empty it
-            }
+                //empty it
+                input.set_value(""); 
+            } 
             MsgFeature::FeatureSearchChange(cur_value, is_enter)
         });
+
+
+
+        //Create autocomplete list for search -- get relevant features
+        let mut list_autocomplete_red = Vec::new();
+        if !self.last_search_feature_input.is_empty() {
+            if let AsyncData::Loaded(current_datadesc) = &ctx.props().current_datadesc {
+                let mat = current_datadesc.matrices.get(&self.last_search_feature_mat);
+                if let Some(mat) = mat {
+                    let last_search_feature_input = self.last_search_feature_input.to_lowercase();  //// TODO: need to store feature name too
+                    for item in &mat.list_feature_names {
+                        let item_lower = item.to_lowercase();
+                        if item_lower.starts_with(&last_search_feature_input) {  // TODO: for speed, it would make sense to have features sorted in alphabetic order and do some type of binary search for the start position in list
+                            list_autocomplete_red.push(item.clone());
+                        }
+                    }
+                }
+            }
+        }
+        //Create autocomplete list for search -- make html
+        let mut list_autocomplete_html = Vec::new();
+        for t in &list_autocomplete_red {
+
+            let t_copy = t.clone();
+            let cb_onclick = ctx.link().callback(move |e: MouseEvent | { 
+                let window = web_sys::window().unwrap();
+                let document = window.document().unwrap();
+
+                //Empty the search input
+                let target = document.get_element_by_id("search-feature-input");//.unwrap();
+                let input: HtmlInputElement = target.and_then(|t| t.dyn_into::<HtmlInputElement>().ok()).expect("wrong type");
+                input.set_value("");
+
+                e.prevent_default();
+                MsgFeature::FeatureSearchChange(t_copy.clone(), true)
+            });
+
+            list_autocomplete_html.push(html! {
+                <div onclick={cb_onclick}>
+                    {t}
+                </div>
+            });
+        }
+
+
+            let cb_change_search_mat = ctx.link().callback(move |e: Event | { 
+                let target: Option<EventTarget> = e.target();
+                let input: HtmlSelectElement = target.and_then(|t| t.dyn_into::<HtmlSelectElement>().ok()).expect("wrong type");
+                let t=input.value();
+                e.prevent_default();
+                MsgFeature::FeatureSearchMatChange(t.clone(), true)
+            });
+
+
+
 
         //Compose the view
         html! {
             <div class="biscvi-dimred-rightdiv">
                 <div>
                     <div> //  class="bp5-input-group bp5-fill bp5-popover-target bp5-popover-open"
-                        <select>
+                        <select onchange={cb_change_search_mat}>
                             {list_feature_types_html}
                         </select>
                         <span> //  aria-hidden="true" tabindex="-1" class="bp5-icon bp5-icon-search"
-                            <input type="text" autocomplete="off" placeholder="Search feature" aria-autocomplete="list" value="" onkeyup={input_onkeyup}/> // aria-controls="listbox-7"  class="bp5-input" aria-haspopup="listbox" role="combobox"   ref={input_node_ref} 
+                            <div class="autocomplete">
+                                <input type="text" autocomplete="off" placeholder="Search feature" aria-autocomplete="list" value={self.last_search_feature_input.clone()} onkeyup={input_onkeyup} id="search-feature-input"/> // aria-controls="listbox-7"  class="bp5-input" aria-haspopup="listbox" role="combobox"   ref={input_node_ref} 
+                                <div class="autocomplete-items"> 
+                                    {list_autocomplete_html}
+                                </div>
+                            </div>
                             {svg_search}
                         </span>
                     </div>
