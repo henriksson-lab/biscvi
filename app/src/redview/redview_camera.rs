@@ -1,4 +1,5 @@
-use crate::component_reduction_main::ReductionViewData;
+use crate::redview::ReductionViewData;
+
 
 
 ////////////////////////////////////////////////////////////

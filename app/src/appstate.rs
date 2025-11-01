@@ -3,7 +3,8 @@ use my_web_app::CountFileMetaColumnData;
 
 use std::fmt;
 
-use crate::component_reduction_main::ReductionViewData;
+use crate::redview::ReductionViewData;
+
 
 //TODO: Possibility of a struct, mapping int <-> cell. can share this
 

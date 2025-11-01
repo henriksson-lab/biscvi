@@ -7,7 +7,7 @@ use yew::{html, Callback, Component, Context, Html, MouseEvent, NodeRef};
 use yew::Properties;
 
 use crate::appstate::{AsyncData, PerCellDataSource};
-use crate::component_reduction_main::get_palette_for_categories;
+use crate::redview::redview_main::get_palette_for_categories;
 
 
 ////////////////////////////////////////////////////////////

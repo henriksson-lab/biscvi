@@ -19,7 +19,6 @@ pub struct ReductionRequest {
     pub reduction_name: String,
 }
 
-
 ////////////////////////////////////////////////////////////
 /// 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -41,11 +40,13 @@ pub struct FeatureCountsRequest {
 
 ////////////////////////////////////////////////////////////
 /// 
+/*
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ClusterResponse {
     pub indices: Vec<u32>,
     pub data: Vec<f32>     ////////// nooo! not really! several options?
 }
+ */
 
 
 
@@ -72,7 +73,6 @@ pub enum CountFileMetaColumnData {
 impl CountFileMetaColumnData {
 }
 
-
 ////////////////////////////////////////////////////////////
 /// 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -92,9 +92,6 @@ pub struct MetadataColumnResponse {
 pub struct DatasetDescRequest {
 }
 
-
-
-
 ////////////////////////////////////////////////////////////
 /// 
 #[derive(Debug, Deserialize, Serialize)]
@@ -112,6 +109,9 @@ impl DatasetDescResponse {
             meta: HashMap::new(),
         }
     }
+
+
+
 
 }
 

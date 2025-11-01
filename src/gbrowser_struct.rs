@@ -46,6 +46,7 @@ pub struct GBrowserRecordBuf {
 
 
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct GBrowserChunk {
     pub records: Vec<GBrowserRecordBuf>,
 }
@@ -55,7 +56,7 @@ pub struct GBrowserChunk {
 ////////////////////////////////////////////////////////////
 /// 
 pub struct GBrowserChunkTrack {
-    pub chunk_size: usize,
+    pub chunk_size: u64,
     pub records: HashMap<usize, GBrowserChunk>,    
 }
 
@@ -64,11 +65,13 @@ impl GBrowserChunkTrack {
     ////////////////////////////////////////////////////////////
     /// Which bin does a position refer to?
     pub fn pos_to_bin(&self, pos: u64) -> usize {
-        pos as usize / self.chunk_size 
+        (pos / self.chunk_size) as usize
     }
 }
 
 
+////////////////////////////////////////////////////////////
+/// 
 pub struct GBrowserGFF {
     pub tracks: Vec<GBrowserChunkTrack>,
     pub remainder: Vec<GBrowserRecordBuf>,
@@ -87,7 +90,7 @@ impl GBrowserGFF {
 
     ////////////////////////////////////////////////////////////
     /// add track. call from smallest to largest
-    pub fn add_track(&mut self, chunk_size: usize) {
+    pub fn add_track(&mut self, chunk_size: u64) {
         self.tracks.push(GBrowserChunkTrack {
             chunk_size,
             records: HashMap::new()
@@ -124,4 +127,50 @@ impl GBrowserGFF {
     }
 
 
+    ////////////////////////////////////////////////////////////
+    /// Get a description of the GFF store
+    pub fn get_description(&self) -> GBrowserGFFdescription {
+        let mut chunk_sizes: Vec<u64> = Vec::new();
+        for t in &self.tracks {
+            chunk_sizes.push(t.chunk_size);
+        }
+        GBrowserGFFdescription {
+            chunk_sizes,
+            remainder: Vec::new() ///////////////////// ???
+        }
+    }
+
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////
+/// Description to be sent over the network
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GBrowserGFFdescription {
+    pub chunk_sizes: Vec<u64>,
+    pub remainder: Vec<GBrowserRecordBuf>,
+}
+
+
+
+
+////////////////////////////////////////////////////////////
+/// Index into binary file
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GBrowserGFFindex {
+    pub chunk_sizes: Vec<u64>,
+    pub remainder: Vec<GBrowserRecordBuf>,
+
+    pub chunk_coordinates: HashMap<(u32, u64),GBrowserGFFchunkpos>,  // (trackID, chunkID) => (start,end) in bytes
+
+}
+
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GBrowserGFFchunkpos {
+    pub start: u64,
+    pub end: u64
 }

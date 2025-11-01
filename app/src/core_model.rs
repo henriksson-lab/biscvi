@@ -16,7 +16,7 @@ use crate::appstate::BiscviCache;
 use crate::appstate::MetadataData;
 use crate::appstate::PerCellDataSource;
 use crate::appstate::ReductionData;
-use crate::component_reduction_main::convert_from_response_to_reduction_data;
+use crate::redview::redview_main::convert_from_response_to_reduction_data;
 use crate::resize::ComponentSize;
 use crate::resize::ComponentSizeObserver;
 

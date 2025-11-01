@@ -1,16 +1,21 @@
+use flate2::Compression;
 use flate2::read::GzDecoder;
+use flate2::read::GzEncoder;
 use my_web_app::gbrowser_struct::GBrowserGFF;
+use my_web_app::gbrowser_struct::GBrowserGFFchunkpos;
 use my_web_app::gbrowser_struct::GBrowserRecordBuf;
 use noodles::gff::feature::RecordBuf;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
+use std::io::Cursor;
 use std::path::PathBuf;
 use noodles::gtf;
 use noodles::gff;
 
 use crate::gbrowser_noodles::convert_record;
 
-
+use std::io::prelude::*;
 
 pub struct GFFparseSettings {
 }
@@ -26,6 +31,44 @@ pub struct GFFparseSettings {
 pub struct FeatureCollection {
 }
 impl FeatureCollection {
+
+
+    ////////////////////////////////////////////////////////////
+    /// x
+    pub fn write_indexed_gff(gff: &GBrowserGFF, path: &PathBuf) -> anyhow::Result<()> {
+
+        let chunk_coordinates: HashMap<(u32, u64),GBrowserGFFchunkpos> = HashMap::new();  // (trackID, chunkID) => (start,end) in bytes
+
+        //Compress each chunk in each track
+        for track in &gff.tracks {
+
+            for (chunk_id, v) in &track.records {
+
+                let ser_out = serde_cbor::to_vec(&v)?;
+                let reader = Cursor::new(ser_out);
+
+                let mut gz = GzEncoder::new(reader, Compression::fast());
+
+                let mut ret_vec = Vec::new();
+                gz.read_to_end(&mut ret_vec)?;
+
+
+                // https://docs.rs/flate2/latest/flate2/write/struct.GzEncoder.html
+
+            }
+        }
+
+
+
+
+        anyhow::Ok(())
+    }
+
+
+
+
+
+
 
 
 

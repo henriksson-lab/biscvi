@@ -1,9 +1,11 @@
-use crate::{appstate::{PerCellDataSource}, component_reduction_main::{ReductionView}, core_model::*};
+use crate::{appstate::{PerCellDataSource}, core_model::*};
 
 use yew::{prelude::*};
 
-use crate::component_reduction_left::MetadataView;
-use crate::component_reduction_right::FeatureView;
+use super::ReductionView;
+use super::MetadataView;
+use super::FeatureView;
+
 
 impl Model {
 

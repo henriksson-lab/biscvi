@@ -20,12 +20,12 @@ use crate::appstate::BiscviCache;
 use crate::appstate::MetadataData;
 use crate::appstate::PerCellDataSource;
 use crate::appstate::ReductionData;
-use crate::camera::Camera2D;
-use crate::camera::Rectangle2D;
 use crate::core_model::MsgCore;
 use crate::histogram::make_safe_minmax;
+use crate::redview::Camera2D;
+use crate::redview::ClosestPointIndex2D;
+use crate::redview::Rectangle2D;
 use crate::resize::ComponentSize;
-use crate::closestpoint::ClosestPointIndex2D;
 
 
 // see https://github.com/yewstack/yew/blob/master/examples/webgl/src/main.rs

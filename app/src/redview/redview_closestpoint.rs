@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use crate::component_reduction_main::ReductionViewData;
+use crate::redview::ReductionViewData;
+
 
 ////////////////////////////////////////////////////////////
 /// ID of a bucket
