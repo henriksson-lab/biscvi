@@ -10,8 +10,13 @@ impl Model {
 
         html! {
             <div>
-                <div class="biscvi-dimred-maindiv">
-                    {"About"}
+                <div class="biscvi-about-maindiv">
+                    <h1>
+                        {"About"}
+                    </h1>
+                    <p>
+                        {"Biscvi (Bacterial Integrated Single-Cell VIewer) is maintained by HenLab and Carroll lab"}
+                    </p>
                 </div>
             </div>
         }
