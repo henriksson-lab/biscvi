@@ -161,7 +161,9 @@ impl FeatureCollection {
     /// Create an empty GFF index with suitable chunk sizes
     pub fn make_default_gff() -> GBrowserGFF {
         let mut gff = GBrowserGFF::new();
-        gff.add_track(5000000);  //5 mb -- (same as 1mb + 10mb. 45mb file => 167mb file)
+        // right now,  -- (same as 1mb + 10mb. 45mb file => 167mb file)
+        gff.add_track(1000000);  //1 mb
+        gff.add_track(5000000);  //5 mb
         gff.add_track(50000000); //50 mb
         gff
     }    

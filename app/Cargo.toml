@@ -29,6 +29,7 @@ js-sys = "0.3.77"
 rand = "0.9.2"
 bytes = {version = "1.10.1", features = ["std"]}
 flate2 = "1.1.5"
+bstr = "1.12.1"
 #yew-component-size = "0.1.0"
 
 
@@ -45,6 +46,7 @@ features = [
   'WebGlUniformLocation',
   'DomRect',
   'CanvasRenderingContext2d',
+  'SvgElement',
   'HtmlIFrameElement'
 ]
 

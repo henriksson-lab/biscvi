@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::Mutex;
 
 use my_web_app::FeatureCountsRequest;
@@ -102,16 +103,6 @@ impl Component for Model {
         ctx.link().send_message(MsgCore::GetDatasetDesc());  //reduction desc?
         ctx.link().send_message(MsgCore::GetGffDesc());
 
-        let query = GBrowserGFFchunkRequest {
-            to_get: vec![GBrowserGFFchunkID {
-                chr: "1".into(),
-                bin: 0,
-                track: 0
-            }]
-        };
-        ctx.link().send_message(MsgCore::RequestGFFchunks(query));
- 
-
         Self {
             current_page: CurrentPage::Home,
             current_reduction: None,
@@ -210,9 +201,6 @@ impl Component for Model {
             // Message: Set xx, sent from server
             MsgCore::SetGffDesc(res) => {
                 //log::debug!("got desc {:?}",res);
-
-
-
                 self.current_gff = AsyncData::new(Mutex::new(ClientGBrowseData { 
                     desc: res,
                     chunks: HashMap::new()
@@ -372,9 +360,11 @@ impl Component for Model {
             MsgCore::RequestGFFchunks(query) => {
 
                 //Insert loading place holders until data received
-                if let AsyncData::Loaded(current_gff) = &self.current_gff {
-                    let mut current_gff = current_gff.lock().unwrap();
-                    current_gff.set_loading(&query);
+                if let AsyncData::Loaded(current_gff) = &self.current_gff.clone() {  //can we avoid clone? TODO
+                    let mut current_gff_content = current_gff.lock().unwrap();
+                    current_gff_content.set_loading(&query);
+                    //Make a note that the content changed
+                    self.current_gff = AsyncData::Loaded(Arc::clone(current_gff))
                 }
 
                 //Request data
@@ -402,9 +392,11 @@ impl Component for Model {
             // Message: Set GFF data, sent from server
             MsgCore::SetGFFchunks(res) => {  //may need to know what is empty. or store in message back
                 log::debug!("SetGFFchunks");
-                if let AsyncData::Loaded(current_gff) = &self.current_gff {
-                    let mut current_gff = current_gff.lock().unwrap();
-                    current_gff.set_chunks(res);
+                if let AsyncData::Loaded(current_gff) = &self.current_gff.clone() {
+                    let mut current_gff_content = current_gff.lock().unwrap();
+                    current_gff_content.set_chunks(res);
+                    //Make a note that the content changed
+                    self.current_gff = AsyncData::Loaded(Arc::clone(current_gff))
                 }
                 true
             },

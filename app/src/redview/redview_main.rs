@@ -537,7 +537,11 @@ impl Component for ReductionView {
                     <canvas 
                         ref={self.node_ref.clone()} 
                         style="border:1px solid #000000;"
-                        onmousemove={cb_mousemoved} onclick={cb_mouseclicked} onwheel={cb_mousewheel} onmousedown={cb_onmousedown} onmouseup={cb_onmouseup}
+                        onmousemove={cb_mousemoved} 
+                        onclick={cb_mouseclicked} 
+                        onwheel={cb_mousewheel} 
+                        onmousedown={cb_onmousedown} 
+                        onmouseup={cb_onmouseup}
                         width={format!{"{}", canvas_w}}
                         height={format!{"{}", canvas_h}}
                     />
