@@ -182,7 +182,7 @@ pub fn index_countfile(p: &PathBuf) -> anyhow::Result<CountFile> {
     for count_name in count_names {
         let cnt = group_counts.group(&count_name)?;
 
-        println!("Indixing count matrix: {}", count_name);
+        println!("Indexing count matrix: {}", count_name);
 
         // Data in this datset:
         // ./data -- read on demand
@@ -237,14 +237,14 @@ pub fn index_countfile(p: &PathBuf) -> anyhow::Result<CountFile> {
         let desc = if let Ok(_ds_thismeta) = ds_thismeta {
             CountFileMetaColumnDesc::Numeric()
         } else {
-            println!("{}",meta_name);
+            //println!("{}",meta_name);
             let group_thismeta = group_meta.group(&meta_name)?;
             let ds_categories = group_thismeta.dataset("categories")?;
             let categories = read_hdf5_stringvec(&ds_categories)?;  //  FixedAscii(19)
             CountFileMetaColumnDesc::Categorical(categories)
         };
 
-        println!("Meta column {} --- {:?}", meta_name, desc);
+        //println!("Meta column {} --- {:?}", meta_name, desc);
         map_meta.insert(meta_name.clone(), desc);
     }
 

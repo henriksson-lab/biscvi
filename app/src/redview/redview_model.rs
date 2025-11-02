@@ -27,6 +27,7 @@ impl Model {
             MsgCore::RequestSetColorByMeta(name)  // UmapColoring instead?
         });
 
+        //Callback: send message to component above
         let on_propagate= ctx.link().callback(move |sig: MsgCore| {
             log::debug!("propagate {:?}", sig);
             sig

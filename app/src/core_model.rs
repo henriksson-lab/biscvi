@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::Mutex;
+
 use my_web_app::FeatureCountsRequest;
 use my_web_app::DatasetDescRequest;
 use my_web_app::DatasetDescResponse;
@@ -6,6 +9,11 @@ use my_web_app::MetadataColumnResponse;
 use my_web_app::ReductionRequest;
 use my_web_app::ReductionResponse;
 
+use my_web_app::gbrowser_struct::GBrowserGFFchunkID;
+use my_web_app::gbrowser_struct::GBrowserGFFchunkRequest;
+use my_web_app::gbrowser_struct::GBrowserGFFchunkResponse;
+use my_web_app::gbrowser_struct::GBrowserGFFdescription;
+use my_web_app::gbrowser_struct::GBrowserGFFdescriptionRequest;
 use web_sys::window;
 use yew::prelude::*;
 
@@ -16,6 +24,7 @@ use crate::appstate::BiscviCache;
 use crate::appstate::MetadataData;
 use crate::appstate::PerCellDataSource;
 use crate::appstate::ReductionData;
+use crate::gbrowser::ClientGBrowseData;
 use crate::redview::redview_main::convert_from_response_to_reduction_data;
 use crate::resize::ComponentSize;
 use crate::resize::ComponentSizeObserver;
@@ -42,6 +51,9 @@ pub enum MsgCore {
     GetDatasetDesc(),
     SetDatasetDesc(DatasetDescResponse),
 
+    GetGffDesc(),
+    SetGffDesc(GBrowserGFFdescription),
+
     GetReduction(String),
     SetReduction(String, ReductionResponse),
 
@@ -51,6 +63,9 @@ pub enum MsgCore {
     DataChanged, //Just update using "true"
 
     WindowResize(ComponentSize),
+
+    RequestGFFchunks(GBrowserGFFchunkRequest),
+    SetGFFchunks(GBrowserGFFchunkResponse),
 
 }
 
@@ -63,6 +78,8 @@ pub struct Model {
     pub current_page: CurrentPage,
     pub current_reduction: Option<String>,              //should be state of a page; move later
     pub current_datadesc: AsyncData<DatasetDescResponse>,  //For now, makes sense to keep this here, as it is static. but risks becoming really large
+
+    pub current_gff: AsyncData<Mutex<ClientGBrowseData>>,
 
     // For count tables
     pub reductions: BiscviCache<ReductionData>,        
@@ -82,12 +99,25 @@ impl Component for Model {
     fn create(ctx: &Context<Self>) -> Self {
 
         //Get initial data to show
-        ctx.link().send_message(MsgCore::GetDatasetDesc());
+        ctx.link().send_message(MsgCore::GetDatasetDesc());  //reduction desc?
+        ctx.link().send_message(MsgCore::GetGffDesc());
+
+        let query = GBrowserGFFchunkRequest {
+            to_get: vec![GBrowserGFFchunkID {
+                chr: "1".into(),
+                bin: 0,
+                track: 0
+            }]
+        };
+        ctx.link().send_message(MsgCore::RequestGFFchunks(query));
+ 
 
         Self {
             current_page: CurrentPage::Home,
             current_reduction: None,
             current_datadesc: AsyncData::NotLoaded,
+            current_gff: AsyncData::NotLoaded,
+
             reductions: BiscviCache::new(ReductionData::new()),
             metadatas: BiscviCache::new(MetadataData::new()),
             last_component_size: ComponentSize { width: 100.0, height: 100.0 },
@@ -103,7 +133,6 @@ impl Component for Model {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
 
-
             ////////////////////////////////////////////////////////////
             // Message: Data changed, redraw
             MsgCore::DataChanged => {
@@ -116,7 +145,6 @@ impl Component for Model {
                 self.current_page = page;
                 true
             },
-
 
             ////////////////////////////////////////////////////////////
             // Message: Get general dataset description
@@ -152,6 +180,45 @@ impl Component for Model {
                 true
             },
 
+            ////////////////////////////////////////////////////////////
+            // Message: Get x description
+            MsgCore::GetGffDesc() => {
+                let query = GBrowserGFFdescriptionRequest {
+                };
+                let query_json = serde_json::to_vec(&query).expect("Could not convert to json");
+                
+                let get_data = async move {
+                    let client = reqwest::Client::new();
+                    //log::debug!("get coloring");
+                    let res = client.post(format!("{}/get_gff_desc",get_host_url()))
+                        .header("Content-Type", "application/json")
+                        .body(query_json) 
+                        .send()
+                        .await
+                        .expect("Failed to send request")
+                        .bytes()
+                        .await
+                        .expect("Could not get binary data");
+                    let res = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
+                    MsgCore::SetGffDesc(res)
+                };
+                ctx.link().send_future(get_data);
+                false
+            },
+
+            ////////////////////////////////////////////////////////////
+            // Message: Set xx, sent from server
+            MsgCore::SetGffDesc(res) => {
+                //log::debug!("got desc {:?}",res);
+
+
+
+                self.current_gff = AsyncData::new(Mutex::new(ClientGBrowseData { 
+                    desc: res,
+                    chunks: HashMap::new()
+                }));
+                true
+            },
 
             ////////////////////////////////////////////////////////////      ////////////////// call only when data needed?
             // Message: Get a given reduction
@@ -191,8 +258,6 @@ impl Component for Model {
                 true //can already show loading status, so true
             },
 
-
-
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
             MsgCore::SetReduction(reduction_name, res) => {
@@ -205,14 +270,12 @@ impl Component for Model {
                 true
             },
 
-
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
             MsgCore::RequestSetColorByMeta(name) => {   //name??
 
                 //log::debug!("RequestSetColorByMeta {} ",name);
 
-//                let has_data = self.current_data.lock().unwrap().metadatas.contains_key(&name);
                 let has_data = self.metadatas.data.metadatas.contains_key(&name);
 
                 //For now, point to show new data. But we might not yet have it
@@ -286,7 +349,6 @@ impl Component for Model {
                 false
             },
 
-
             ////////////////////////////////////////////////////////////
             // Message: Set reduction data, sent from server
             MsgCore::SetColorByMeta(name, res) => {  
@@ -298,14 +360,54 @@ impl Component for Model {
                 true
             },
 
-
             ////////////////////////////////////////////////////////////
             // Message: Window is resized
             MsgCore::WindowResize(size) => {  
                 self.last_component_size = size;
                 true
-            }
+            },
 
+            ////////////////////////////////////////////////////////////
+            // Message: Get GFF data for genome browser
+            MsgCore::RequestGFFchunks(query) => {
+
+                //Insert loading place holders until data received
+                if let AsyncData::Loaded(current_gff) = &self.current_gff {
+                    let mut current_gff = current_gff.lock().unwrap();
+                    current_gff.set_loading(&query);
+                }
+
+                //Request data
+                let query_json = serde_json::to_vec(&query).expect("Could not convert to json");
+
+                let get_data = async move {
+                    let client = reqwest::Client::new();
+                    let res = client.post(format!("{}/get_gff_chunks",get_host_url()))
+                        .header("Content-Type", "application/json")
+                        .body(query_json) 
+                        .send()
+                        .await
+                        .expect("Failed to send request")
+                        .bytes()
+                        .await
+                        .expect("Could not get binary data");
+                    let res = serde_cbor::from_reader(res.reader()).expect("Failed to deserialize");
+                    MsgCore::SetGFFchunks(res)
+                };
+                ctx.link().send_future(get_data);
+                true //can already show loading status, so true
+            },
+
+            ////////////////////////////////////////////////////////////
+            // Message: Set GFF data, sent from server
+            MsgCore::SetGFFchunks(res) => {  //may need to know what is empty. or store in message back
+                log::debug!("SetGFFchunks");
+                if let AsyncData::Loaded(current_gff) = &self.current_gff {
+                    let mut current_gff = current_gff.lock().unwrap();
+                    current_gff.set_chunks(res);
+                }
+                true
+            },
 
 
         }

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 
 ////////////////////////////////////////////////////////////
-/// 
+/// Pointers into a sparse matrix stored on disk. 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CountFileMat {
     pub list_feature_names: Vec<String>,
@@ -22,34 +22,24 @@ impl CountFileMat {
 
 }
 
-
-
 ////////////////////////////////////////////////////////////
-/// 
+/// Size of a reduction
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CountFileRed {
     pub num_sample: usize,
     pub num_dim: usize,
 }
 
-
-
-
-
 ////////////////////////////////////////////////////////////
-/// 
+/// A description of an array  TODO generalize
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum CountFileMetaColumnDesc {
     Numeric(),
     Categorical(Vec<String>),
 }
 
-
-
-
-
 ////////////////////////////////////////////////////////////
-/// 
+/// Description of set of metadata, for each cell
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CountFileMeta {
     pub names: Vec<String>,

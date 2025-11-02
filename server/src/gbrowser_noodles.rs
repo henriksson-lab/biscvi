@@ -6,14 +6,17 @@ use my_web_app::gbrowser_struct::GBrowserStrand;
 use noodles::gff::feature::RecordBuf;
 use noodles::gff::feature::record::Attributes;
 use noodles::gff::feature::record::Phase;
+use noodles::gff::feature::record::Strand;
 use std::collections::HashMap;
 use std::ops::Deref;
 
-use noodles::gff::feature::record::Strand;
 
+// Noodles do not have Serde serialization for the records. We convert to our own data structure
+// to enable this. Having our own structures also means that Noodles need not be included on the
+// client side, reducing size
 
 ////////////////////////////////////////////////////////////
-/// 
+/// Convert Noodles Phase
 fn convert_phase(s: Phase) -> GBrowserPhase {
     match s {
         Phase::Zero => GBrowserPhase::Zero,
@@ -23,7 +26,7 @@ fn convert_phase(s: Phase) -> GBrowserPhase {
 }
 
 ////////////////////////////////////////////////////////////
-/// 
+///Convert Noodles Strand
 fn convert_strand(s: Strand) -> GBrowserStrand {
     match s {
         Strand::None => GBrowserStrand::None,
@@ -35,7 +38,7 @@ fn convert_strand(s: Strand) -> GBrowserStrand {
 
 
 ////////////////////////////////////////////////////////////
-/// 
+/// Convert Noodles record
 pub fn convert_record(r: &RecordBuf) -> GBrowserRecordBuf {
 
     let mut attr:HashMap<BString, GBrowserAttributeValue> = HashMap::new();
@@ -58,7 +61,4 @@ pub fn convert_record(r: &RecordBuf) -> GBrowserRecordBuf {
         attributes: attr,
     }
 }
-
-
-
 

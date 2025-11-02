@@ -30,5 +30,7 @@ flate2 = { version = "1.0.28", features = ["zlib-rs"], default-features = false 
 noodles = { version = "0.97.0", features = ["bam", "cram", "fastq", "sam", "gff", "gtf", "bgzf", "async"] }
 bstr = { version = "1.12.1", features = ["serde"] }
 bytes = "1.10.1"
+serde_with = "3.15.1"
+async-std = "1.13.2"
 
 #https://docs.rs/archflow/latest/archflow/

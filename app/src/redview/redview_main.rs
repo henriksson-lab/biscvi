@@ -223,7 +223,7 @@ impl Component for ReductionView {
 
 
             ////////////////////////////////////////////////////////////
-            // Message: Porpagate data
+            // Message: Propagate message to component above
             MsgReduction::Propagate(msg) => {
                 ctx.props().on_propagate.emit(msg);
                 false

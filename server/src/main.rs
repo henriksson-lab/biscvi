@@ -5,7 +5,7 @@ pub mod gbrowser_gff;
 pub mod gbrowser_noodles;
 
 use std::fs::File;
-use std::path::{Path};
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::io::BufReader;
 
@@ -13,11 +13,13 @@ use actix_files::Files;
 use actix_web::http::header::ContentType;
 use actix_web::web::Json;
 use actix_web::{web, web::Data, App, HttpResponse, HttpServer, post};
+use my_web_app::gbrowser_struct::{GBrowserGFFchunkRequest, GBrowserGFFchunkResponse, GBrowserGFFdescription, GBrowserGFFdescriptionRequest};
 use my_web_app::{FeatureCountsRequest, DatasetDescRequest, MetadataColumnRequest, ReductionRequest};
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::err::MyError;
+use crate::gbrowser_gff::FeatureCollection;
 use crate::index::{index_bascet_dir, BascetDir};
 
 ////////////////////////////////////////////////////////////
@@ -32,6 +34,7 @@ pub struct ServerData {
 pub struct ConfigFile {
     bind: String,
     datadir: String,
+    gff: Option<PathBuf>,
 }
 
 
@@ -108,6 +111,56 @@ async fn get_dataset_desc(server_data: Data<Mutex<ServerData>>, req_body: web::J
 }
 
 
+
+
+////////////////////////////////////////////////////////////
+/// REST entry point
+#[post("/get_gff_desc")]
+async fn get_gff_desc(server_data: Data<Mutex<ServerData>>, req_body: web::Json<GBrowserGFFdescriptionRequest>) -> Result<HttpResponse, MyError> { 
+
+    println!("get_gff_desc {:?}",req_body);
+
+    let server_data =server_data.lock().unwrap(); 
+
+    let out = if let Some((gff_index, _gff_path)) = &server_data.bdir.gff_data {
+        gff_index.get_description()
+    } else {
+        GBrowserGFFdescription::new()
+    };
+    let ser_out = serde_cbor::to_vec(&out)?;
+
+    Ok(HttpResponse::Ok()
+        .content_type(ContentType::octet_stream())
+        .body(ser_out))
+}
+
+
+////////////////////////////////////////////////////////////
+/// REST entry point
+#[post("/get_gff_chunks")]
+async fn get_gff_chunks(server_data: Data<Mutex<ServerData>>, req_body: web::Json<GBrowserGFFchunkRequest>) -> Result<HttpResponse, MyError> { 
+
+    println!("get_gff_chunks {:?}",req_body);
+    let Json(req) = req_body;
+
+    let server_data = server_data.lock().unwrap();
+    let out = if let Some((gff_index, gff_path)) = &server_data.bdir.gff_data {
+        FeatureCollection::get_gff_response(&req, gff_index, gff_path).await?
+    } else {
+        //Return empty response if no data. or error?
+        GBrowserGFFchunkResponse {
+            data: Vec::new()
+        }
+    };
+
+    let ser_out = serde_cbor::to_vec(&out)?;
+
+    Ok(HttpResponse::Ok()
+        .content_type(ContentType::octet_stream())
+        .body(ser_out))
+}
+
+
 ////////////////////////////////////////////////////////////
 /// Backend entry point
 #[actix_web::main]
@@ -122,7 +175,7 @@ async fn main() -> std::io::Result<()> {
     let config_file:ConfigFile = serde_json::from_reader(config_reader).expect("Could not open config file");
 
     let bascet_dir = Path::new(&config_file.datadir);
-    let bdir = index_bascet_dir(&bascet_dir).expect("Failed to index data");
+    let bdir = index_bascet_dir(&bascet_dir, &config_file).expect("Failed to index data");
     
     let data = Data::new(Mutex::new(
         ServerData {
@@ -138,13 +191,15 @@ async fn main() -> std::io::Result<()> {
             .service(get_reduction)
             .service(get_metacolumn)
             .service(get_dataset_desc)
+            .service(get_gff_desc)
+            .service(get_gff_chunks)
             .service(Files::new("/", "./dist/").index_file("index.html"))
             //.service(get_)
             .default_service(
                 web::route().to(|| HttpResponse::NotFound()),  //header("Location", "/").finish()
             )
     })
-    .bind(config_file.bind)? /////////////// for dev, "127.0.0.1:8080"  ; 127.0.0.1:5199 for beagle deployment
+    .bind(config_file.bind)? 
     .run()
     .await
 }
